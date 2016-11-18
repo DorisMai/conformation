@@ -217,9 +217,8 @@ def jointplot(i_j_tuple, all_data, save_dir=None, make_animation=False, trajecto
     #ax.contour(density.T, extent = (xmin,xmax,ymin,ymax))#, origin='lower', aspect='auto', cmap=cm.bone)  
     
     if refcoords is not None:
-      print(ref_data)
-      ax.scatter([ref_data[0,0]], [ref_data[0,1]], marker = 'v', c='k',s=75)
-      ax.scatter([ref_data[1,0]], [ref_data[1,1]], marker = 'v', c='k',s=75)
+      for i in range(0, ref_data.shape[0]):
+        ax.scatter([ref_data[i,0]], [ref_data[i,1]], marker = 'v', c='k',s=75)
 
     #Marginals
     
@@ -243,6 +242,7 @@ def jointplot(i_j_tuple, all_data, save_dir=None, make_animation=False, trajecto
     if tpt_paths is not None:
       annotation_linspace = np.linspace(ymax - np.std(y), ymax, len(tpt_paths))
       print(tpt_paths)
+
       color=cm.rainbow(np.linspace(0,1,len(tpt_paths)))
       for p, tpt_path in enumerate(tpt_data):
         path = np.array([(pt[0], pt[1]) for pt in tpt_path])
