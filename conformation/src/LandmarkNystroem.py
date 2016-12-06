@@ -1,4 +1,11 @@
 """
+Modification of Nystroem approximation in scikit-learn by Evan N. Feinberg
+to incorporate custom basis / landmark points provided by user.
+
+TODO: make PR to sklearn
+"""
+
+"""
 The :mod:`sklearn.kernel_approximation` module implements several
 approximate kernel feature maps base on Fourier transforms.
 """
