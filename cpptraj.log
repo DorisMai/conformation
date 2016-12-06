@@ -1,7 +1,0 @@
-# 08/17/15  00:19:28
-parm /scratch/users/enf/b2ar_analysis/subsampled_allprot_combined_reimaged/A-00.pdb
-trajin /scratch/users/enf/b2ar_analysis/subsampled_allprot_combined_reimaged/A-00.dcd
-autoimage
-trajout /scratch/users/enf/b2ar_analysis/subsampled_allprot_combined_reimaged/A-00_reimaged.dcd
-trajout /scratch/users/enf/b2ar_analysis/subsampled_allprot_combined_reimaged/A-00_reimaged.pdb onlyframes 1
-go

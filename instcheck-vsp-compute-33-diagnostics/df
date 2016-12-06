@@ -1,7 +1,0 @@
-Filesystem                                  Size  Used Avail Use% Mounted on
-/dev/md1                                     96G  2.6G   89G   3% /
-tmpfs                                        12G   84K   12G   1% /dev/shm
-/dev/md0                                    969M   32M  887M   4% /boot
-/dev/md3                                    3.5T  239M  3.3T   1% /opt
-AFS                                         8.6G     0  8.6G   0% /afs
-vsp-store.stanford.edu:/vspdata/vspcompute   20T   20T  416G  98% /vspdata/vspcompute
