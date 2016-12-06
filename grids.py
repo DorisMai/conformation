@@ -58,6 +58,11 @@ def pprep_prot(pdb, ref, extension = ".mae"):
 	if os.path.exists(mae_filename): 
 		print("already prepped and mae'd protein")
 		return
+
+	protein = md.load_frame(pdb, index=0)
+	protein = protein.atom_slice([a.index for a in protein.topology.atoms if a.residue.is_protein or a.residue.is_water])
+	protein.save(pdb, force_overwrite=True)
+
 	current_directory = os.getcwd()
 	os.chdir(os.path.dirname(pdb))
 	mae_filename = os.path.basename(mae_filename)
@@ -248,6 +253,7 @@ def convert_name_to_cid(name):
 def convert_names_to_cids(names, worker_pool=None, parallel=False):
 	return(function_mapper(convert_name_to_cid, worker_pool, parallel, names))
 
+
 def prepare_ligands(lig_dir, exts = [".mae"],
 										n_ring_conf=1, n_stereoisomers=1,
 										force_field=16, worker_pool=None,
@@ -361,15 +367,17 @@ def generate_grid_input(mae, grid_center, grid_dir, remove_lig = None, outer_box
 		print("Already created that grid job, skipping")
 		return
 
-	if remove_lig == None:
+	if remove_lig == None or remove_lig is False:
 		if not os.path.exists(new_mae):
 			cmd = "cp %s %s" %(mae, new_mae)
 			print(cmd)
 			subprocess.call(cmd, shell=True)
 	else:
-		cmd = "$SCHRODINGER/run $SCHRODINGER/mmshare-v3.3/python/common/delete_atoms.py -asl \"res.pt %s \" %s %s" %(remove_lig, mae, new_mae)
-		print(cmd)
-		subprocess.call(cmd, shell=True)
+		#cmd = "$SCHRODINGER/run $SCHRODINGER/mmshare-v3.3/python/common/delete_atoms.py -asl \"(atom.i_m_pdb_convert_problem 4)\" %s %s" %(mae, new_mae)
+		#cmd = "$SCHRODINGER/run $SCHRODINGER/mmshare-v3.3/python/common/delete_atoms.py -asl \"res.pt %s \" %s %s" %(remove_lig, mae, new_mae)
+		#print(cmd)
+		#subprocess.call(cmd, shell=True)
+		print("")
 
 	gridfile = open(grid_job, "w")
 	gridfile.write("GRIDFILE	 %s.zip \n" %mae_last_name)
@@ -497,33 +505,36 @@ def run_command(cmd):
 	subprocess.call(cmd, shell = True)
 
 def dock(dock_job, timeout=600):
-	docking_dir = os.path.dirname(dock_job)
-	os.chdir(docking_dir)
-	log_file = "%s.log" %(dock_job.split("/")[-1].split(".")[0])
-	cmd = "timeout %d $SCHRODINGER/glide %s -OVERWRITE -WAIT -strict -NOJOBID > %s" %(timeout, dock_job, log_file)
-	print(cmd)
 	try:
+		docking_dir = os.path.dirname(dock_job)
+		os.chdir(docking_dir)
+		log_file = "%s.log" %(dock_job.split("/")[-1].split(".")[0])
+		cmd = "timeout %d $SCHRODINGER/glide %s -OVERWRITE -WAIT -strict -NOJOBID > %s" %(timeout, dock_job, log_file)
+		print(cmd)
 		run_command(cmd)
+		#p = subprocess.Popen(cmd, shell=True)
+		#try:
+		#	p.wait(timeout=5)
+		#except:
+		#	print("Docking job timed out")
+		#	p.terminate()
+		#except:
+
+		#	print("Docking job timed out.")
+
+		os.chdir("/home/enf/b2ar_analysis/conformation")
 	except:
+		os.chdir("/home/enf/b2ar_analysis/conformation")
 		print("docking job timed out or failed.")
-	#p = subprocess.Popen(cmd, shell=True)
-	#try:
-	#	p.wait(timeout=5)
-	#except:
-	#	print("Docking job timed out")
-	#	p.terminate()
-	#except:
-
-	#	print("Docking job timed out.")
-
-	os.chdir("/home/enf/b2ar_analysis/conformation")
 	return
 
-def dock_conformations(grid_dir, docking_dir, ligand_dir, precision = "SP",
+
+def dock_conformations(docking_ligand_dir_tuple, grid_dir="", precision = "SP",
 											 chosen_jobs=None,
-											 parallel = False, grid_ext = ".zip", worker_pool=None,
+											 grid_ext = ".zip",
 											 return_jobs=False, retry_after_failed=False,
 											 redo=False):
+	docking_dir, ligand_dir = docking_ligand_dir_tuple
 	if not os.path.exists(docking_dir): os.makedirs(docking_dir)
 
 	#grid_subdirs = [x[0] for x in os.walk(grid_dir)]
@@ -542,38 +553,46 @@ def dock_conformations(grid_dir, docking_dir, ligand_dir, precision = "SP",
 		if not redo:
 			#print grid_file_no_ext
 			maegz_name = "%s/%s_pv.maegz" %(docking_dir, grid_file_no_ext)
+			lib_name = "%s/%s_lib.maegz" %(docking_dir, grid_file_no_ext)
 			log_name = "%s/%s.log" %(docking_dir, grid_file_no_ext)
 			log_size = 0
 			if os.path.exists(log_name): log_size = os.stat(log_name).st_size
-			if os.path.exists(maegz_name) and log_size > 3000:
+			if (os.path.exists(maegz_name) or os.path.exists(lib_name)):
 				#print("already docked %s" %grid_file_no_ext)
 				continue
+			elif os.path.exists(log_name):
+				with open(log_name, 'r') as f:
+					read_log = f.read().replace('\n', '')
+					if "cannot write PoseViewer" in read_log or "No Ligand Poses were written" in read_log:
+						if not retry_after_failed:
+							continue
 
-			if not retry_after_failed:
-				if os.path.exists(log_name):
-					conformation, score, best_pose = analyze_log_file(log_name)
-					if score == 0.0:
-						continue
+
+			#if not retry_after_failed:
+		#		if os.path.exists(log_name):
+		#			conformation, score, best_pose = analyze_log_file(log_name)
+	#				if score == 0.0:
+#						continue
 
 		dock_job_name = "%s/%s.in" %(docking_dir, grid_file_no_ext)
 		dock_jobs.append(dock_job_name)
 
-		dock_job_input = open(dock_job_name, "w")
-		dock_job_input.write("GRIDFILE	%s \n" %grid_file)
-		dock_job_input.write("LIGANDFILE	 %s \n" %ligand_dir)
-		if precision == "XP":
-			dock_job_input.write("POSTDOCK_XP_DELE	 0.5 \n")
-		dock_job_input.write("PRECISION	 %s \n" %precision)
-		if precision == "XP":
-			dock_job_input.write("WRITE_XP_DESC	 False \n")
-		dock_job_input.write("OUTPUTDIR	 %s \n" %docking_dir)
-		dock_job_input.close()
+		with open(dock_job_name, "w") as dock_job_input:
+			dock_job_input.write("GRIDFILE	%s \n" %grid_file)
+			dock_job_input.write("LIGANDFILE	 %s \n" %ligand_dir)
+			if precision == "XP":
+				dock_job_input.write("POSTDOCK_XP_DELE	 0.5 \n")
+			dock_job_input.write("PRECISION	 %s \n" %precision)
+			if precision == "XP":
+				dock_job_input.write("WRITE_XP_DESC	 False \n")
+			dock_job_input.write("OUTPUTDIR	 %s \n" %docking_dir)
+			dock_job_input.write("POSE_OUTTYPE ligandlib \n")
 
 	#print("Written all docking job input files")
 	#print dock_jobs
 	if return_jobs:
 		return dock_jobs
-
+	"""
 	if worker_pool is not None:
 		print("MAPPING OVER WORKER POOL")
 		worker_pool.map_sync(dock, dock_jobs)
@@ -589,6 +608,7 @@ def dock_conformations(grid_dir, docking_dir, ligand_dir, precision = "SP",
 			dock(job)
 
 	print("Done docking.")
+	"""
 
 def failed(log_file):
 	log = open(log_file, "r")
@@ -727,6 +747,11 @@ def dock_ligands_and_receptors(grid_dir, docking_dir, ligands_dir, precision = "
 
 	else:
 		dock_jobs = []
+		ligand_dirs = []
+
+		ligand_dir_tuples = []
+
+		print("Creating new directories for each ligand.")
 		for ligand in ligands:
 			lig_last_name = ligand.split("/")[len(ligand.split("/"))-1]
 			lig_no_ext = lig_last_name.split("-out.")[0]
@@ -734,14 +759,26 @@ def dock_ligands_and_receptors(grid_dir, docking_dir, ligands_dir, precision = "
 				if lig_no_ext not in chosen_ligands: continue
 			lig_dir = "%s/%s" %(docking_dir, lig_no_ext)
 			if not os.path.exists(lig_dir): os.makedirs(lig_dir)
-			dock_jobs += dock_conformations(grid_dir, lig_dir, ligand, precision = precision,
-								 chosen_jobs = chosen_receptors, grid_ext=grid_ext, 
-								 worker_pool=worker_pool, return_jobs=True, retry_after_failed=retry_after_failed,
-								 redo=redo)
+			ligand_dir_tuples.append((lig_dir, ligand))
+
+		print("Done creating directories. Determining which docking jobs to conduct.")
+		dock_conformations_partial = partial(dock_conformations, grid_dir=grid_dir,
+																				 precision=precision,
+																				 chosen_jobs=chosen_receptors, grid_ext=grid_ext,
+																				 return_jobs=True,
+																				 retry_after_failed=retry_after_failed, redo=redo)
+
+		dock_jobs = function_mapper(dock_conformations_partial,
+																parallel=parallel,
+																worker_pool=worker_pool,
+																var_list=ligand_dir_tuples)
+
+		dock_jobs = [job for ligand in dock_jobs for job in ligand]
 
 		partial_docker = partial(dock, timeout=timeout)
+		print("About to do %d Docking computations." %len(dock_jobs))
+
 		if worker_pool is not None:
-			print("About to do %d Docking computations." %len(dock_jobs))
 			random.shuffle(dock_jobs)
 			worker_pool.map_sync(partial_docker, dock_jobs)
 		elif parallel:

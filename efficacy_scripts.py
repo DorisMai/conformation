@@ -31,7 +31,7 @@ from detect_intermediates import *
 from interpret_tICs import *
 from custom_tica import *
 from sklearn.svm import SVR
-from sklearn.metrics import roc_auc_score, precision_score, recall_score, accuracy_score
+from sklearn.metrics import roc_auc_score, precision_score, recall_score, accuracy_score, precision_recall_curve
 from sklearn.preprocessing import StandardScaler
 from pandas.tools.plotting import table
 from msm_resampled import *
@@ -242,8 +242,9 @@ def initialize_analysis(clusterer_dir, user_defined_coords, user_defined_names, 
   if not os.path.exists(docking_multiple_ligands):
     analyze_docking_results_multiple(docking_dir, precision = precision, ligands = all_ligands, summary = docking_multiple_ligands, redo = True)
 
-  if not os.path.exists(aggregate_docking):
-    compute_cluster_averages(None, csv_filename=docking_multiple_ligands, save_csv=aggregate_docking)
+  #if not os.path.exists(aggregate_docking):
+  #  print(docking_multiple_ligands)
+  #  compute_cluster_averages(None, csv_filename=docking_multiple_ligands, save_csv=aggregate_docking)
 
   reference_docking_dir = "/home/enf/b2ar_analysis/reference_docking/docking_%s" %precision
   reference_ligand_docking = "%s/all_docking_scores.csv" % reference_docking_dir
@@ -265,12 +266,19 @@ def msm_reweighted_features_per_ligand(feature_dfs,
                                        total_samples,
                                        clusters_map,
                                        msm_object,
-                                       save_dir=""):
+                                       save_dir="",
+                                       ligand_subset=None,
+                                       redo=False):
   num_trajs = len(feature_dfs)
   lig_features_eq = {}
   lig_features_eq_filename = "%s/lig_features_eq.h5" %save_dir
+  if os.path.exists(lig_features_eq_filename) and not redo:
+    return(compat_verboseload(lig_features_eq_filename))
+
   for ligand in ligand_populations_df.index.values.tolist():
-    print(ligand)
+    if ligand_subset is not None:
+      if ligand not in ligand_subset:
+        continue
     lig_msm_resampled_file = "%s/%s_msm_eq_resampled.h5" %(save_dir, ligand)
     eq_pops = ligand_populations_df.loc[ligand][list(range(0, ligand_populations_df.shape[1]))].values
     new_msm = copy.deepcopy(msm_object)
@@ -285,6 +293,8 @@ def msm_reweighted_features_per_ligand(feature_dfs,
 
     lig_features_eq[ligand] = resample_features_by_msm_equilibirum_pop(feature_dfs,
                                                                        lig_traj_to_frames, None)
+
+  verbosedump(lig_features_eq, lig_features_eq_filename)
 
   return lig_features_eq
 
@@ -747,9 +757,10 @@ def convert_smiles_to_compound(smiles):
     c = pc.get_compounds(smiles, namespace='smiles')
     pc_smiles = c[0].canonical_smiles
     c2 = pc.get_compounds(pc_smiles, namespace='smiles')[0]
-    return((c[0].synonyms[0], c[0].canonical_smiles, c2.synonyms[0]))
+    cid = c.cid
+    return((c[0].synonyms[0], c[0].canonical_smiles, c2.synonyms[0], cid))
   except:
-    return(("", "", ""))
+    return(("", "", "", ""))
 
 def convert_smiles_to_compounds(smiles, parallel=False, worker_pool=None):
   compound_names_smiles = function_mapper(convert_smiles_to_compound, worker_pool, parallel, smiles)
@@ -758,16 +769,22 @@ def convert_smiles_to_compounds(smiles, parallel=False, worker_pool=None):
 def write_smiles_to_disk():
   return
 
+def convert_sdf_to_compound(sdf):
+  smiles = convert_sdf_to_smiles(sdf)
+  name, pc_smiles, pc_name, cid = convert_smiles_to_compound(smiles)
+  return((smiles, name, pc_smiles, pc_name, cid))
+
 def convert_sdfs_to_compounds(sdfs, parallel=False, worker_pool=None):
   print("Getting SMILES from SDFs...")
-  smiles_list = convert_sdfs_to_smiles(sdfs, parallel, worker_pool)
   print("Done. Now getting compound names from SMILES...")
-  compound_names_smiles = convert_smiles_to_compounds(smiles_list, parallel, worker_pool)
-  names = [t[0] for t in compound_names_smiles]
-  pc_smiles = [t[1] for t in compound_names_smiles]
-  pc_names = [t[2] for t in compound_names_smiles]
+  results = function_mapper(convert_sdf_to_compound, worker_pool, parallel, sdfs)
+  smiles_list = [t[0] for t in results]
+  names = [t[1] for t in results]
+  pc_smiles = [t[2] for t in results]
+  pc_names = [t[3] for t in results]
+  cids = [t[4] for t in results]
   print("Done. returning compound names.")
-  return(smiles_list, names, pc_smiles, pc_names) 
+  return(smiles_list, names, pc_smiles, pc_names, cids) 
 
 """
 adapted from RDKit since there is no AUC
@@ -985,6 +1002,11 @@ def generate_or_load_model(features, y, featurizer_names,
         pickle.dump(model, f, protocol=2)
     return(model)
 
+def precision_threshold_full_recall(recall_curve):
+  precision, recall, thresholds = recall_curve
+  for i, threshold in enumerate(thresholds):
+    if recall[threshold] == 1.:
+      return((precision[i], threshold))
 
 def do_single_classification_experiment(trial, features_y=[], y=None,
                                         features=None, model=None,
@@ -1005,6 +1027,9 @@ def do_single_classification_experiment(trial, features_y=[], y=None,
 
   recalls = []
   class_b_recalls = []
+
+  precisions_at_full_recall = []
+  thresholds_at_full_recall = []
 
   fdr_means = []
   precision_means = []
@@ -1121,11 +1146,17 @@ def do_single_classification_experiment(trial, features_y=[], y=None,
         class_b_recall = recall_score(y_test, y_pred, average=None)[1]
         recalls.append(mean_recall)
         class_b_recalls.append(class_b_recall)
+
         #print("class_b_recall:")
         #print(class_b_recall)
       except:
         recalls.append(0.)
         class_b_recalls.append(0.)
+
+      curve = precision_recall_curve(y_test, y_probb, pos_label=1)
+      min_precision, min_threshold = precision_threshold_full_recall(curve)
+      precisions_at_full_recall.append(min_precision)
+      thresholds_at_full_recall.append(min_threshold)
 
       try:
         precision = precision_score(y_test, y_pred)
@@ -1177,7 +1208,10 @@ def do_single_classification_experiment(trial, features_y=[], y=None,
 
       accuracies.append(accuracy_score(y_test, y_pred))
 
-  return((feature_importance, aucs, log_aucs, roc_aucs, bedrocs, precisions, fdrs, recalls, precision_means, fdr_means, recall_means, class_b_aucs, class_b_recalls, class_b_precisions, class_b_fdrs, accuracies))
+  return((feature_importance, aucs, log_aucs, roc_aucs, bedrocs, precisions,
+          fdrs, recalls, precision_means, fdr_means, recall_means,
+          class_b_aucs, class_b_recalls, class_b_precisions, class_b_fdrs, accuracies,
+          thresholds_at_full_recall, precisions_at_full_recall))
 
 def convert_to_n_class(values):
   return np.eye(len(set(values.tolist())))[values.tolist()]
@@ -1290,6 +1324,8 @@ def do_classification_experiment(features, y, feature_names,
     results_dict['class_b_precisions'] =  [t[13] for t in model_results]
     results_dict['class_b_fdrs'] =  [t[14] for t in model_results]  
     results_dict['accuracies'] =  [t[15] for t in model_results]    
+    results_dict['thresholds_at_full_recall'] =  [t[16] for t in model_results]    
+    results_dict['precisions_at_full_recall'] =  [t[17] for t in model_results]    
 
     return results_dict
 
@@ -1463,6 +1499,7 @@ def plot_clustermap(corr_df, save_file, method='single', row_cluster=True, col_c
   g.savefig(save_file, facecolor='w', edgecolor='w')
   #plt.show()
 
+
 def analyze_multiclass_experiment(results_dict, featurizer_names, 
                                   all_feature_names, drug_names, save_dir, 
                                   class_names, X, coef_name="Importance", 
@@ -1483,47 +1520,56 @@ def analyze_multiclass_experiment(results_dict, featurizer_names,
      with one array per trial. The function then finds average feature_importance
      for each feature for each class among all the trials
   """
+  print("analyzing precision at full recall:")
+  test_auc_significance(results_dict["precisions_at_full_recall"],
+                        featurizer_names, "%s_Precision" %exp_title, save_dir, fxn=fxn)
+
+  print("analyzing threshold at full recall:") 
+  test_auc_significance(results_dict["thresholds_at_full_recall"],
+                        featurizer_names, "%s_Threshold" %exp_title, save_dir, fxn=fxn)
+
+
   print("analyzing Accuracy:")
   test_auc_significance(results_dict["accuracies"],
-                        featurizer_names, "Accuracy", save_dir, fxn=fxn)
+                        featurizer_names, "%s_Accuracy" %exp_title, save_dir, fxn=fxn)
 
   make_auc_df(results_dict["accuracies"], 
-              featurizer_names, "Accuracy", save_dir)
+              featurizer_names, "%s_Accuracy" %exp_title, save_dir)
 
   print("analyzing Recall:")
   test_auc_significance(results_dict["class_b_recalls"],
-                        featurizer_names, "Recall", save_dir, fxn=fxn)
+                        featurizer_names, "%s_Recall" %exp_title, save_dir, fxn=fxn)
 
   make_auc_df(results_dict["class_b_recalls"], 
-              featurizer_names, "Recall", save_dir)
+              featurizer_names, "%s_Recall" %exp_title, save_dir)
 
   print("analyzing precision:")
   test_auc_significance(results_dict["class_b_precisions"],
-                        featurizer_names, "precision", save_dir, fxn=fxn)
+                        featurizer_names, "%s_precision" %exp_title, save_dir, fxn=fxn)
 
   make_auc_df(results_dict["class_b_precisions"], 
-              featurizer_names, "precision", save_dir)
+              featurizer_names, "%s_precision" %exp_title, save_dir)
 
   print("analyzing fdr:")
   test_auc_significance(results_dict["class_b_fdrs"],
-                        featurizer_names, "fdr", save_dir, fxn=fxn)
+                        featurizer_names, "%s_fdr" %exp_title, save_dir, fxn=fxn)
 
   make_auc_df(results_dict["class_b_fdrs"], 
-              featurizer_names, "fdr", save_dir)
+              featurizer_names, "%s_fdr" %exp_title, save_dir)
 
   print("analyzing Recall:")
   test_auc_significance(results_dict["recalls"],
-                        featurizer_names, "Recall", save_dir, fxn=fxn)
+                        featurizer_names, "%s_Recall" %exp_title, save_dir, fxn=fxn)
 
   make_auc_df(results_dict["recalls"], 
-              featurizer_names, "Recall", save_dir)
+              featurizer_names, "%s_Recall" %exp_title, save_dir)
 
   print("analyzing precision:")
   test_auc_significance(results_dict["precisions"],
-                        featurizer_names, "precision", save_dir, fxn=fxn)
+                        featurizer_names, "%s_precision" %exp_title, save_dir, fxn=fxn)
 
   make_auc_df(results_dict["precisions"], 
-              featurizer_names, "precision", save_dir)
+              featurizer_names, "%s_precision" %exp_title, save_dir)
 
   print("analyzing fdr:")
   test_auc_significance(results_dict["fdrs"],
@@ -1534,17 +1580,17 @@ def analyze_multiclass_experiment(results_dict, featurizer_names,
 
   print("analyzing class B ROC AUC:")
   test_auc_significance(results_dict["class_b_aucs"],
-                        featurizer_names, exp_title, save_dir, fxn=fxn)
+                        featurizer_names, "%s: Class B AUC" %exp_title, save_dir, fxn=fxn)
 
   make_auc_df(results_dict["class_b_aucs"], 
-              featurizer_names, exp_title, save_dir)
+              featurizer_names, "%s: Class B AUC" %exp_title, save_dir)
 
   print("analyzing ROC AUC:")
   test_auc_significance(results_dict["test_roc_aucs"],
-                        featurizer_names, exp_title, save_dir, fxn=fxn)
+                        featurizer_names, "%s AUC" %exp_title, save_dir, fxn=fxn)
 
   make_auc_df(results_dict["test_roc_aucs"], 
-              featurizer_names, exp_title, save_dir)
+              featurizer_names, "%s AUC" %exp_title, save_dir)
 
   try:
     print("analyzing BedROC")

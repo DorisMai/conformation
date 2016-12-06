@@ -22,7 +22,7 @@ def fit_normalizer(features_directory, features=None):
 def fit_and_transform(features_directory, model_dir, stride=5, lag_time=10, 
 					  n_components = 5, wolf = True, shrinkage = None, rho = 0.05,
 					  parallel=True, sparse = True, traj_ext = ".h5", normalize=True, 
-					  partial_fit=True, subsample=1, recompute_tica=True, features=None):
+					  partial_fit=True, subsample=1, recompute_tica=False, features=None):
 	if not os.path.exists(model_dir):
 		os.makedirs(model_dir)
 

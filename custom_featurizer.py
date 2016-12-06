@@ -6,7 +6,7 @@ import mdtraj as md
 import numpy as np
 from analysis import *
 from msmbuilder.utils import verbosedump, verboseload
-import time
+import time 
 from pdb_editing import *
 from mdtraj.geometry import dihedral as ManualDihedral
 import sys
@@ -807,7 +807,8 @@ def featurize_contacts_custom(traj_dir, features_dir, traj_ext, structures,
 															schemes=[],
 															excluded_trajs=[],
 															binarize=0.5,
-															within_turn=True):
+															within_turn=True,
+															simulation_reference_filename=""):
 	'''
 	Nb: The input to this function, either contact_residues or contact_residue_pairs_file, must contain instances 
 	of object Residue(). The .resSeq attribute of each such instance must refer to residue numbering in your reference
@@ -860,7 +861,7 @@ def featurize_contacts_custom(traj_dir, features_dir, traj_ext, structures,
 
 		if "CA" in schemes or "ca" in schemes:
 			old_pairs = copy.deepcopy(contact_residue_pairs)
-			t0 = md.load_frame(get_trajectory_files(traj_dir, traj_ext)[0], index=0)
+			t0 = md.load_frame(simulation_reference_filename, index=0)
 			residue_pairs = convert_residue_pairs_to_mdtraj_indices(t0.topology, contact_residue_pairs)
 			ca_pairs = md.compute_contacts(t0, contacts = residue_pairs, scheme = 'CA', ignore_nonprotein=False)[1]
 			ca_pairs = [sorted((t0.topology.residue(pair[0]).resSeq, t0.topology.residue(pair[1]).resSeq)) for pair in ca_pairs]
@@ -872,10 +873,7 @@ def featurize_contacts_custom(traj_dir, features_dir, traj_ext, structures,
 			ca_residue_pairs = sorted(ca_residue_pairs)
 		#ordering = np.argsort([r[0].resSeq for r in contact_residue_pairs]).tolist()
 		#contact_residue_pairs = [contact_residue_pairs[i] for i in ordering]
-		try:
-			top = md.load_frame(trajs[0], index=0).topology
-		except:
-			top = md.load_frame(which_trajs_to_featurize(traj_dir, traj_ext, features_dir, excluded_trajs, redo=True)[0], index=0).topology
+		top = md.load_frame(simulation_reference_filename, index=0).topology
 		for residue_pair in user_specified_contact_residue_pairs:
 			res_i, res_j = residue_pair.residue_i, residue_pair.residue_j
 			mdtraj_i = convert_residue_to_mdtraj_index(top, res_i)
