@@ -1,0 +1,11 @@
+parm system.prmtop
+trajin Prod_1.nc
+trajout 1_thru__skip_10.nc offset 10
+go
+clear all
+parm system.prmtop
+trajin 1_thru__skip_10.nc
+center origin '!(:POPC | :TIP3 | :SOD | :CLA)'
+image origin center
+trajout 1_thru__skip_10_reimaged.nc
+go

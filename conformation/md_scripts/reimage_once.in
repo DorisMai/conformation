@@ -1,0 +1,9 @@
+#!/bin/bash
+
+echo "parm system.prmtop" >> traj_script.in
+echo "trajin 1_thru_"$LAST"_skip_"$SKIP".nc" >> traj_script.in
+echo "center origin '!(:POPC | :TIP3 | :SOD | :CLA)'" >> traj_script.in
+echo "image origin center" >> traj_script.in
+echo "trajout 1_thru_"$LAST"_skip_"$SKIP"_reimaged.nc" >> traj_script.in
+echo "go" >> traj_script.in
+eval "$AMBERBIN/cpptraj system.prmtop traj_script.in"

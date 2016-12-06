@@ -1,0 +1,49 @@
+#!/bin/bash
+module load GCC/4.9.2-binutils-2.25
+## number of frames to skip
+SKIP=10
+
+## if you want to include heating/equilibration, enter "YES"; otherwise, keep the default
+EQ="NO"
+
+echo "Skipping every "$SKIP" frames"
+
+##load the topolgy file
+echo "parm system.prmtop" > traj_script.in 
+
+##compute the number of trajectory files contained
+LAST=$(ls -1 Prod_*.rst | sed 's/.*_\([0-9]\+\).*/\1/' | sort -n | tail -n1)
+
+##include heating/equilibration into the trajectory if you so desire
+if [ "$EQ" == "YES" ]; then
+	echo "trajin system.inpcrd" >> traj_script.in	
+	echo "trajin Heat_1.nc" >> traj_script.in
+	echo "trajin Heat_2.nc" >> traj_script.in
+
+	for i in `seq 1 6`;
+	do
+		echo "trajin Eq_"$i".nc" >> traj_script.in
+	done
+fi
+
+##include all production trajectory files
+for i in `seq 1 $LAST`;
+do
+	echo "trajin Prod_"$i".nc" >> traj_script.in 
+done
+
+
+## Un-comment the below line if you have an analysis you would like to conduct described in calculation.in
+
+## echo "readinput calculation.in" >> traj_script.in
+
+echo "trajout 1_thru_"$LAST"_skip_"$SKIP".nc offset "$SKIP >> traj_script.in
+echo "go" >> traj_script.in
+echo "clear all" >> traj_script.in
+echo "parm system.prmtop" >> traj_script.in
+echo "trajin 1_thru_"$LAST"_skip_"$SKIP".nc" >> traj_script.in
+echo "center origin '!(:POPC | :TIP3 | :SOD | :CLA)'" >> traj_script.in
+echo "image origin center" >> traj_script.in
+echo "trajout 1_thru_"$LAST"_skip_"$SKIP"_reimaged.nc" >> traj_script.in
+echo "go" >> traj_script.in
+eval "$AMBERBIN/cpptraj system.prmtop traj_script.in"

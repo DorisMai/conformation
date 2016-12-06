@@ -1,0 +1,10 @@
+ipcontroller --ip="*"  &
+sleep 5
+mpirun ipengine &
+sleep 30
+
+python test_ipcontroller.py
+
+ipcluster stop --profile=default
+
+
