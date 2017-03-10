@@ -466,6 +466,7 @@ def generate_grids(mae_dir, grid_center, grid_dir, remove_lig = None,
 	if not os.path.exists(grid_dir): os.makedirs(grid_dir)
 
 	maes = get_trajectory_files(mae_dir, ".mae")
+	print(maes)
 	if chosen_receptors is not None:
 		maes = [mae for mae in maes if remove_path_and_extension(mae) in chosen_receptors]
 
@@ -528,9 +529,9 @@ def dock(dock_job, timeout=600):
 
 		#	print("Docking job timed out.")
 
-		os.chdir("/home/enf/b2ar_analysis/conformation")
+		#os.chdir("/home/enf/b2ar_analysis/conformation")
 	except:
-		os.chdir("/home/enf/b2ar_analysis/conformation")
+		#os.chdir("/home/enf/b2ar_analysis/conformation")
 		print("docking job timed out or failed.")
 	return
 
