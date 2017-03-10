@@ -3,7 +3,7 @@ __copyright__ = "Copyright 2016, Stanford University"
 __license__ = "GPL"
 
 
-from io_functions import *
+from conformation.src.io_functions import *
 import numpy as np
 import copy
 import matplotlib as mpl

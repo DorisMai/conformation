@@ -47,14 +47,16 @@ def jointplots(data, save_dir, titles = None, main = "", refcoords = None, refco
   i_j_tuples = []
   if data_j is None:
     for i in range(0, data.shape[1]):
-      for j in range(0, data.shape[1]):
-        if i == j: continue 
-        i_j_tuples.append((i, j))
+      for j in range(i, data.shape[1]):
+        if i <= max_i and j <= max_tIC:
+          if i == j: continue 
+          i_j_tuples.append((i, j))
   else:
     for i in range(0, data.shape[1]):
       for j in range(0, data_j.shape[1]):
-        i_j_tuples.append((i, j))
-        i_j_tuples.append((j,i))
+        if i <= max_i and j <= max_tIC:
+          i_j_tuples.append((i, j))
+          i_j_tuples.append((j,i))
 
   if parallel and worker_pool is None:
     pool = mp.Pool(int(mp.cpu_count()/2))
@@ -76,8 +78,8 @@ def jointplot(i_j_tuple, all_data, save_dir=None, make_animation=False, trajecto
               all_apo_data=None, remake=False, min_i=None, superpose_circles=None, cmap=None):
   matplotlib.use('Agg')
   i, j = i_j_tuple
-  if 1==1:
-  #try:
+  # if 1==1:
+  try:
     if data_j is not None: 
       data = np.column_stack([all_data[:,i], data_j[:,j]])
       partial_titles = [titles[i], titles_j[j]]
@@ -299,8 +301,8 @@ def jointplot(i_j_tuple, all_data, save_dir=None, make_animation=False, trajecto
       anim.save(video_file, fps=30, 
             extra_args=['-vcodec', 'h264', 
                         '-pix_fmt', 'yuv420p'])
-  #except:
-  else:
+  except:
+  #else:
     return
 
 
