@@ -311,8 +311,8 @@ def macrostate_bace(msm_file, n_macrosates, clusters_map_file, start_state=None)
   return
 
 def find_closest_indices_to_cluster_center(tica_coords, clusterer_file, k=1):
-  tica = verboseload(tica_coords)
-  clusterer = verboseload(clusterer_file)
+  tica = compat_verboseload(tica_coords)
+  clusterer = compat_verboseload(clusterer_file)
   kd = KDTree(tica)
   dist, inds = kd.query(clusterer.cluster_centers_, k=k)
   return inds

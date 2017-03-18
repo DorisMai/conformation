@@ -741,6 +741,42 @@ def construct_2d_distance_plots():
               custom_lims=custom_lim_finder(all_apo_data), max_diff=2.5, tpt_paths=None, tpt_paths_j=None,
                n_levels=10, worker_pool=None, parallel=True, n_pts=200j, all_apo_data=all_apo_data)
 
+def convert_compound_on_disk_to_smiles(filename):
+  if 1==1:
+    if ".sdf" in filename or ".mol" in filename:
+      return(''.join(convert_sdf_to_smiles(filename).replace('\'', '').replace("\\n", "")))
+    elif ".smi" in filename:
+      with open(filename, "r") as f:
+        smiles = ''.join(f.read().replace('\n', '').replace('\'', '').replace("\\n", ''))
+      return(smiles)
+  else:
+    return("")
+
+def convert_compound_in_dir_to_smiles(compound_name, directory):
+  sdf_file = "%s/%s.sdf" %(directory, compound_name)
+  mol_file = "%s/%s.mol" %(directory, compound_name)
+  smi_file = "%s/%s.smi" %(directory, compound_name)
+
+  if os.path.exists(sdf_file):
+    return(convert_compound_on_disk_to_smiles(sdf_file))
+  elif os.path.exists(mol_file):
+    return(convert_compound_on_disk_to_smiles(mol_file))
+  elif os.path.exists(smi_file):
+    return(convert_compound_on_disk_to_smiles(smi_file))
+  else:
+    return("")
+
+def convert_compounds_in_dir_to_smiles(compound_names, directory, parallel=False, worker_pool=None):
+  convert_compound_in_dir_to_smiles_partial = partial(convert_compound_in_dir_to_smiles,
+                                                      directory=directory)
+
+  smiles_strings = function_mapper(convert_compound_in_dir_to_smiles_partial,
+                                   parallel=parallel,
+                                   worker_pool=worker_pool,
+                                   var_list=compound_names)
+  return(smiles_strings)
+
+
 def convert_sdf_to_smiles(sdf_file):
   try:
     for mol in pb.readfile("sdf", sdf_file):
@@ -757,7 +793,7 @@ def convert_smiles_to_compound(smiles):
     c = pc.get_compounds(smiles, namespace='smiles')
     pc_smiles = c[0].canonical_smiles
     c2 = pc.get_compounds(pc_smiles, namespace='smiles')[0]
-    cid = c.cid
+    cid = c[0].cid
     return((c[0].synonyms[0], c[0].canonical_smiles, c2.synonyms[0], cid))
   except:
     return(("", "", "", ""))
@@ -828,27 +864,22 @@ def logauc2(x, y, lam=0.001):
 
 def do_regression_experiment(features, y, feature_names, n_trials, 
                              train_size=0.8, regularize=False, model="rfr",
-                             normalize=False, normalize_axis0=True):
+                             normalize=False, normalize_axis0=True, worker_pool=None,
+                             parallel=True):
     test_r2s = []
     feature_importances = []
+    results_dict = {}
 
     do_single_regression_experiment_partial = partial(do_single_regression_experiment, features=features, 
                                                       y=y, n_estimators=1000, train_size=train_size,
                                                       model=model, normalize=normalize, normalize_axis0=normalize_axis0)
 
-    model_results = function_mapper(do_single_classification_experiment_single_partial, worker_pool, parallel, list(range(0,n_trials)))
+    model_results = function_mapper(do_single_regression_experiment_partial, worker_pool, parallel, list(range(0,n_trials)))
     
     print("Finished fitting models")
 
     results_dict['feature_importances'] = [t[0] for t in model_results]
-    results_dict['test_aucs'] = [t[1] for t in model_results]
-    results_dict['test_log_aucs'] = [t[2] for t in model_results]
-    results_dict['test_roc_aucs'] =  [t[3] for t in model_results]
-    results_dict['bedrocs'] =  [t[4] for t in model_results]
-    results_dict['precisions'] =  [t[5] for t in model_results]
-    results_dict['fdrs'] =  [t[6] for t in model_results]
-    results_dict['recalls'] =  [t[7] for t in model_results]
-
+    results_dict['test_r2s'] = [t[1] for t in model_results]
     
     return results_dict
 
@@ -859,7 +890,7 @@ def do_single_regression_experiment(trial, features, y,
                                     model="rfr",
                                     normalize=True,
                                     normalize_axis0=True):
-
+  features_y = features + [y]
   train_test_arrays = train_test_split(*features_y, train_size=train_size) 
 
   y_train = train_test_arrays[2*len(features)]
@@ -870,6 +901,8 @@ def do_single_regression_experiment(trial, features, y,
   kendall_coefficients = []
   kendall_pvalues = []
   feature_importances = []
+  kendall_scores = []
+  r2_scores = []
 
 
   for i in range(0, len(features)):
@@ -910,11 +943,8 @@ def do_single_regression_experiment(trial, features, y,
           
 
       feature_importances.append(feature_importance)
-      results_dict = {"test_r2s": test_r2s, "feature_importances": feature_importances,
-                      "kendall_coefficients": kendall_coefficients,
-                      "kendall_pvalues": kendall_pvalues}
     
-  return((feature_importance, aucs, log_aucs, roc_aucs, bedrocs, precisions, fdrs, recalls))
+  return((feature_importances, r2_scores))
 
 
 class RegularizedModel(object):
@@ -982,7 +1012,7 @@ def generate_or_load_model(features, y, featurizer_names,
                            n_estimators=1000, max_depth=3,
                            redo=True, parallel=False, worker_pool=None,
                            criterion='gini', normalize=True, splitter=None,
-                           normalize_axis0=False, loocv=False):
+                           normalize_axis0=False, loocv=False, penalty='l1'):
     
   if os.path.exists(filename) and not redo:  
     print("Already fit model, loading now.")
@@ -997,7 +1027,7 @@ def generate_or_load_model(features, y, featurizer_names,
                                          model=model_name, parallel=parallel, worker_pool=worker_pool,
                                          n_estimators=n_estimators, max_depth=max_depth, criterion=criterion,
                                          normalize=normalize, splitter=splitter, normalize_axis0=normalize_axis0,
-                                         loocv=loocv)
+                                         loocv=loocv, penalty=penalty)
     with open(filename, "wb") as f:
         pickle.dump(model, f, protocol=2)
     return(model)
@@ -1014,7 +1044,7 @@ def do_single_classification_experiment(trial, features_y=[], y=None,
                                         max_depth=None, n_estimators=1000,
                                         splitter=None, normalize=True,
                                         normalize_axis0=False,
-                                        loocv=False):
+                                        loocv=False, penalty='l1'):
   aucs = []
   log_aucs = []
   roc_aucs = []
@@ -1088,14 +1118,17 @@ def do_single_classification_experiment(trial, features_y=[], y=None,
             f[top_indices] = rfr.feature_importances_
             feature_importance.append(f)
       elif model=="logistic_cv":
-        rfr = linear_model.LogisticRegressionCV()
+        if penalty == 'l2':
+          rfr = linear_model.LogisticRegressionCV()
+        else:
+          rfr = linear_model.LogisticRegressionCV(penalty='l1', Cs=100, solver='liblinear')
         rfr.fit(X_train, y_train)
         #print(rfr.coef_)
         if not regularize:
             feature_importance.append(rfr.coef_)
         else:
             f = np.zeros(X_train.shape[1])
-            top_indices = np.argsort(np.abs(rfr.coef_)*-1.)[:(X_train.shape[0]/2)].flatten()
+            top_indices = np.argsort(np.abs(rfr.coef_)*-1.)[:regularize].flatten()
             rfr = linear_model.LogisticRegressionCV()
             X_train = X_train[:, top_indices]
             X_test = X_test[:, top_indices]
@@ -1153,10 +1186,14 @@ def do_single_classification_experiment(trial, features_y=[], y=None,
         recalls.append(0.)
         class_b_recalls.append(0.)
 
-      curve = precision_recall_curve(y_test, y_probb, pos_label=1)
-      min_precision, min_threshold = precision_threshold_full_recall(curve)
-      precisions_at_full_recall.append(min_precision)
-      thresholds_at_full_recall.append(min_threshold)
+      try:
+        curve = precision_recall_curve(y_test, y_probb, pos_label=1)
+        min_precision, min_threshold = precision_threshold_full_recall(curve)
+        precisions_at_full_recall.append(min_precision)
+        thresholds_at_full_recall.append(min_threshold)
+      except:
+        precisions_at_full_recall.append(0.)
+        thresholds_at_full_recall.append(0.)
 
       try:
         precision = precision_score(y_test, y_pred)
@@ -1188,7 +1225,8 @@ def do_single_classification_experiment(trial, features_y=[], y=None,
         aucs.append(auc)
         log_aucs.append(logauc)  
       except:
-        pass
+        aucs.append(0.)
+        log_aucs.append(0.)
       try:
         roc_aucs.append(roc_auc_score(convert_to_n_class(y_test[:,0]), y_score))
         class_b_aucs.append(roc_auc_score(convert_to_n_class(y_test[:,0]), y_score, average=None)[1])
@@ -1213,9 +1251,6 @@ def do_single_classification_experiment(trial, features_y=[], y=None,
           class_b_aucs, class_b_recalls, class_b_precisions, class_b_fdrs, accuracies,
           thresholds_at_full_recall, precisions_at_full_recall))
 
-def convert_to_n_class(values):
-  return np.eye(len(set(values.tolist())))[values.tolist()]
-
 def custom_normalize(X, normalizer, normalize_axis0=False):
   if normalizer is not None:
     if not normalize_axis0:
@@ -1234,7 +1269,7 @@ def do_classification_experiment(features, y, feature_names,
                                  n_estimators=1000, max_depth=3,
                                  splitter=None, criterion='gini',
                                  normalize=False, normalize_axis0=False,
-                                 loocv=False):
+                                 loocv=False, penalty='l1'):
     test_aucs = []
     test_log_aucs = []
     test_roc_aucs = []
@@ -1263,7 +1298,7 @@ def do_classification_experiment(features, y, feature_names,
             results_dict[feature_names[feature_ind]] = (final_rfr, rfr.feature_importances_)
         else:
             f = np.zeros(X_train.shape[1])
-            top_indices = np.argsort(rfr.feature_importances_*-1.)[:(X_train.shape[0]/2)].tolist()
+            top_indices = np.argsort(rfr.feature_importances_*-1.)[:regularize].tolist()
             rfr = RandomForestClassifier(n_estimators=500, max_depth=3, max_features='sqrt', n_jobs=-1, oob_score=False)
             try:
               X_train = X_train[:, top_indices]
@@ -1275,14 +1310,17 @@ def do_classification_experiment(features, y, feature_names,
             results_dict[feature_names[feature_ind]] = (final_rfr, f)
 
       elif model=="logistic_cv":
-        rfr = linear_model.LogisticRegressionCV()
+        if penalty=='l2':
+          rfr = linear_model.LogisticRegressionCV()
+        else:
+          rfr = linear_model.LogisticRegressionCV(penalty='l1', Cs=100, solver='liblinear')
         rfr.fit(X_train, y_train)
         if not regularize:
             final_rfr = RegularizedModel(sklearn_model=rfr, input_transformer=sc, normalize_axis0=normalize_axis0)
             results_dict[feature_names[feature_ind]] = (final_rfr, rfr.coef_)
         else:
             f = np.zeros(X_train.shape[1])  
-            top_indices = np.argsort(np.abs(rfr.coef_)*-1.)[:(X_train.shape[0]/2)].flatten()
+            top_indices = np.argsort(np.abs(rfr.coef_)*-1.)[:regularize].flatten()
             rfr = linear_model.LogisticRegressionCV()
             X_train = X_train[:, top_indices]
             rfr.fit(X_train, y_train)
@@ -1303,7 +1341,7 @@ def do_classification_experiment(features, y, feature_names,
                                                                                              n_estimators=n_estimators, max_depth=max_depth,
                                                                                              normalize=normalize, splitter=splitter,
                                                                                              normalize_axis0=normalize_axis0,
-                                                                                             loocv=loocv)
+                                                                                             loocv=loocv, penalty=penalty)
     model_results = function_mapper(do_single_classification_experiment_single_partial, worker_pool, parallel, trial_indices)
     
     print("Finished fitting models")
@@ -1630,6 +1668,13 @@ def analyze_multiclass_experiment(results_dict, featurizer_names,
                                    index=feature_names,
                                    columns=["Importance"]).sort(["Importance"],
                                    inplace=False)
+
+      importance_df["abs"] = importance_df["Importance"].abs() 
+      importance_df.sort("abs", inplace=True, ascending=False)
+      importance_df = importance_df.groupby(importance_df.index).first().sort(["Importance"], inplace=False, ascending=False).drop("abs", 1)
+
+
+
       if class_id == 0:
         importance_dfs[featurizer_name] = importance_df
                                      
@@ -1757,9 +1802,9 @@ def compare_feature_to_apo(lig_features_eq, ligands, reference_ligand, feature, 
   plt.ylabel("Change compared to %s" %reference_ligand)
   if save_file is not None:
     plt.savefig(save_file)
-def plot_overall_kde(lig_features_eq, ligands, feature, save_file=None):
+def plot_overall_kde(lig_features_eq, ligands, reference_ligand, feature, save_file=None):
   #kde_array = np.zeros((len(ligands), lig_features_eq[lig_features_eq.keys()[0]].shape[0]))
-  custom_bounds = [0.8*lig_features_eq["apo"][feature].values.min(), 1.2*lig_features_eq["apo"][feature].values.max()]
+  custom_bounds = [0.8*lig_features_eq[reference_ligand][feature].values.min(), 1.2*lig_features_eq[reference_ligand][feature].values.max()]
   dx_rows = []
   for i, ligand in enumerate(ligands):
     kde = stats.gaussian_kde(lig_features_eq[ligand][feature].values)
@@ -1774,5 +1819,29 @@ def plot_overall_kde(lig_features_eq, ligands, feature, save_file=None):
   plt.legend(loc='center left', bbox_to_anchor=(1.0, 0.5))
   if save_file is not None:
     plt.savefig(save_file)
+
+def plot_observable_ligand(cluster_features_averages, docking_df):
+  docking_df = docking_df[cluster_features_averages.index]
+  for observable in cluster_features_averages.columns.values:
+    x = cluster_features_averages[observable].values
+    docking_df.columns = x
+    new_df = standardize_df(docking_df.transpose())
+    new_df.sort_index(inplace=False).plot()
+    plt.legend(loc='center left', bbox_to_anchor=(1.0, 0.5))
+    plt.show()
+
+def reweight_observables_with_ddg(observable_df, ddg_df):
+  reweighted_array = np.zeros((ddg_df.shape[0], observable_df.shape[0]))
+  boltzmann_arr = np.exp(ddg_df.values*0.6)
+  observable_arr = observable_df.values
+  for i, ligand in enumerate(ddg_df.index.values.tolist()):
+    denominator = np.sum(boltzmann_arr[i,:])
+    for j in range(0, observable_arr.shape[0]):
+      numerator = np.dot(boltzmann_arr[i,:], observable_arr[j,:])
+      average = numerator / denominator
+      reweighted_array[i][j] = average
+  reweighted_df = pd.DataFrame(reweighted_array, index=ddg_df.index, columns=observable_df.index)
+  return(reweighted_df)
+
 
 

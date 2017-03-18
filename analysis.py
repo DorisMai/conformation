@@ -658,10 +658,13 @@ def analyze_log_file(log_file):
 def analyze_docking_results(docking_dir, ligand, precision, docking_summary, reread=True, write_to_disk=False):
 	try:
 		results_file = docking_summary
+		n_clusters = len(get_trajectory_files(docking_dir, ext = ".in"))
 
 		if os.path.exists(results_file):
 			if reread:
-				return pd.read_csv(results_file)
+				df = pd.read_csv(results_file)
+				if df.shape[0] >= n_clusters:
+					return (ligand, df)
 
 		logs = get_trajectory_files(docking_dir, ext = ".log")
 		scores_list = []
@@ -676,7 +679,7 @@ def analyze_docking_results(docking_dir, ligand, precision, docking_summary, rer
 		#titles = ["sample", "%s" %("%s_%s_score" %(ligand, precision))]
 		#write_map_to_csv(results_file, scores_map, titles)
 		#merged_results = merge_samples(scores_map)
-		return scores_df
+		return (ligand, scores_df)
 	except:
 		return None
 
@@ -703,13 +706,14 @@ def listdirs(folder):
 		#return([d.path for d in os.scandir(folder) if d.is_dir()])
 
 def parse_log_file(result):
+	ligand, result = result
 	keep_columns = [c for c in result.columns.values.tolist() if "score" in c]
 	result.index = result['sample'].values
 
 	docking_pose = result["best_pose_id"]
 	result = result[keep_columns]
 
-	return (docking_pose, result)
+	return (ligand, docking_pose, result)
 
 def get_arg_tuple(subdir, ligands=None, precision="SP", redo=False, reread=True, write_to_disk=False):
 	lig_name = subdir.split("/")[len(subdir.split("/"))-1]
@@ -719,6 +723,7 @@ def get_arg_tuple(subdir, ligands=None, precision="SP", redo=False, reread=True,
 	docking_summary = "%s/docking_summary.csv" %subdir
 	return([subdir, lig_name, precision, docking_summary, reread, write_to_disk])
 
+import time
 def analyze_docking_results_multiple(docking_dir, precision, summary, 
 																		 ligands=None, poses_summary=None, redo=False, reread=True,
 																		 write_to_disk=False, parallel=False, worker_pool=None):
@@ -739,23 +744,52 @@ def analyze_docking_results_multiple(docking_dir, precision, summary,
 
 	print("Obtaining docking scores now...")
 
-	get_arg_tuple_partial = partial(get_arg_tuple, ligands=ligands, precision=precision, redo=redo, reread=reread, write_to_disk=write_to_disk)
-	arg_tuples = function_mapper(get_arg_tuple_partial, worker_pool, parallel, subdirs)
+	get_arg_tuple_partial = partial(get_arg_tuple,
+								    ligands=ligands,
+								    precision=precision,
+								    redo=redo, reread=reread,
+								    write_to_disk=write_to_disk)
+
+	pool = mp.Pool(mp.cpu_count()-1)
+	arg_tuples = pool.map_async(get_arg_tuple_partial,
+								  subdirs)
+	arg_tuples.wait()
+	arg_tuples = arg_tuples.get()
 	arg_tuples = [t for t in arg_tuples if t is not None]
-	lig_names = [t[1] for t in arg_tuples]
+	pool.terminate()
+
+	#arg_tuples = function_mapper(get_arg_tuple_partial,
+	#							 worker_pool,
+	#								 parallel, subdirs)
+
 
 	print("Obtained ligand arguments.")
-	results_list = function_mapper(analyze_docking_results_wrapper, worker_pool, parallel, arg_tuples)
-	result_ids = [idx for idx in range(0, len(results_list)) if results_list[idx] is not None]
-	results_list = [results_list[idx] for idx in result_ids]
-	lig_names = [lig_names[idx] for idx in result_ids]
+
+	#results_list = function_mapper(analyze_docking_results_wrapper, worker_pool, parallel, arg_tuples)
+	a = time.time()
+	pool = mp.Pool(mp.cpu_count()-1)
+	results_list = pool.map_async(analyze_docking_results_wrapper, arg_tuples)
+	results_list.wait()
+	results_list = results_list.get()
+	pool.terminate()
+
+	results_list = [r for r in results_list if r is not None]
+	print(time.time()-a)
 	print("Examined all ligands.")
 
-	results = function_mapper(parse_log_file, worker_pool, parallel, results_list)
+	a = time.time()
+	pool = mp.Pool(mp.cpu_count()-1)
+	results = pool.map_async(parse_log_file, results_list)
+	results.wait()
+	results = results.get()
+	pool.terminate()
+
+	all_docking_results = [t[2] for t in results]
+	all_docking_poses = [t[1] for t in results]
+	lig_names = [t[0] for t in results]
+	print(time.time()-a)
 	print("Parsed all log files.")
 
-	all_docking_results = [t[1] for t in results]
-	all_docking_poses = [t[0] for t in results]
 
 	all_docking_poses = pd.concat(all_docking_poses, axis=1)
 	all_docking_poses.columns = lig_names

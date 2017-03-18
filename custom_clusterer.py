@@ -574,7 +574,7 @@ def sample_from_clusterer(clusterer_file, projected_features_dir, traj_files,
 						  n_samples, save_dir, samples_indices_file, structure=None,
 						  residue_cutoff=10000, parallel=False,
 						  worker_pool=None, lig_name="UNK", reseed_dir=None): 
-	clusterer = verboseload(clusterer_file)
+	clusterer = compat_verboseload(clusterer_file)
 	n_clusters = len(clusterer.cluster_centers_)
 	
 	traj_index_frame_pairs = find_closest_indices_to_cluster_center(projected_features_dir, clusterer_file, k=n_samples)

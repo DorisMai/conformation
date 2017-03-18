@@ -258,10 +258,10 @@ def jointplot(i_j_tuple, all_data, save_dir=None, make_animation=False, trajecto
     if superpose_circles is not None:
       coords = superpose_circles["coords"]
       radii = superpose_circles["radii"]
-      radii = preprocessing.MinMaxScaler().fit_transform(radii)
-      color=iter(cm.winter(radii))
+      scaled_radii = preprocessing.MinMaxScaler().fit_transform(radii)
+      color=iter(cm.winter(scaled_radii))
       for i, coord in enumerate(coords):
-        radius = radii[i]
+        radius = np.abs(radii[i])
         c = next(color)
         ax.scatter(coord[0], coord[1], marker = 'o', c=c,s=radius*100)
     if fig_file is not None:

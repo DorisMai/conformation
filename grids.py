@@ -21,6 +21,7 @@ from analysis import analyze_log_file, function_mapper
 from pubchempy import get_compounds, Compound, Substance
 from chembl_webresource_client import CompoundResource
 import pubchempy as pcp
+from rdkit import Chem
 
 
 class TimeoutException(Exception):	 # Custom exception class
@@ -108,6 +109,23 @@ def pprep(pdb_dir, ref, indices = None, chosen_receptors = None, extension = ".m
 	print("Done prepping proteins")
 	#time.sleep(10)
 
+def convert_ligand_files_to_smiles(lig_dir, lig_names):
+	smiles = []
+	for idx, lig_name in enumerate(lig_names):
+		mol_file = "%s/%s.mol" %(lig_dir, lig_name)
+		sdf_file = "%s/%s.sdf" %(lig_dir, lig_name)
+		if os.path.exists(mol_file):
+			lig_file = mol_file
+		elif os.path.exists(sdf_file):
+			lig_file = sdf_file
+		else:
+			smiles.append(None)
+			continue
+		mol = Chem.MolFromMolFile(lig_file)
+		smi = Chem.MolToSmiles(mol)
+		smiles.append(smi)
+	return(smiles)
+
 
 '''
 The f ollowing two functions take as input the directory contianing the ligands you would like to dock to your receptors, 
@@ -115,6 +133,7 @@ and prepares them with Schrodinger LigPrep, and then saves them in .maegz format
 You can change the settings listed in "ligfile.write" lines. Perhaps we should add this instead as optional inputs
 in the function definition. 
 '''
+
 
 def prepare_ligand(lig, lig_dir, n_ring_conf, n_stereoisomers, force_field, verbose=True):
 	os.chdir(lig_dir)
@@ -367,11 +386,10 @@ def generate_grid_input(mae, grid_center, grid_dir, remove_lig = None, outer_box
 		print("Already created that grid job, skipping")
 		return
 
-	if remove_lig == None or remove_lig is False:
-		if not os.path.exists(new_mae):
-			cmd = "cp %s %s" %(mae, new_mae)
-			print(cmd)
-			subprocess.call(cmd, shell=True)
+	if not os.path.exists(new_mae):
+		cmd = "cp %s %s" %(mae, new_mae)
+		print(cmd)
+		subprocess.call(cmd, shell=True)
 	else:
 		#cmd = "$SCHRODINGER/run $SCHRODINGER/mmshare-v3.3/python/common/delete_atoms.py -asl \"(atom.i_m_pdb_convert_problem 4)\" %s %s" %(mae, new_mae)
 		#cmd = "$SCHRODINGER/run $SCHRODINGER/mmshare-v3.3/python/common/delete_atoms.py -asl \"res.pt %s \" %s %s" %(remove_lig, mae, new_mae)
@@ -398,11 +416,14 @@ def generate_grid(grid_file, grid_dir):
 		print("already generated grid; skipping")
 		return
 
-	os.chdir(grid_dir)
-	grid_command = "$SCHRODINGER/glide %s -OVERWRITE -WAIT" %grid_file
-
-	subprocess.call(grid_command, shell = True)
-	print("completed grid generation job")
+	try:
+		os.chdir(grid_dir)
+		grid_command = "$SCHRODINGER/glide %s -OVERWRITE -WAIT" %grid_file
+		print(grid_command)
+		subprocess.call(grid_command, shell = True)
+		print("completed grid generation job")
+	except:
+		print("ERROR WITH GRID GENERATION")
 	return 
 
 def unzip(zip_file):
@@ -454,7 +475,7 @@ def unzip_receptors(grid_dir, receptors, worker_pool=None):
 
 
 def generate_grids(mae_dir, grid_center, grid_dir, remove_lig = None,
-									 indices = None, chosen_receptors = None, outer_box=10.,
+									 indices = None, chosen_receptors = None, outer_box=25.,
 									 worker_pool=None, parallel=False):
 	print(grid_dir)
 	if not os.path.exists(grid_dir): os.makedirs(grid_dir)
@@ -558,7 +579,6 @@ def dock_conformations(docking_ligand_dir_tuple, grid_dir="", precision = "SP",
 			log_size = 0
 			if os.path.exists(log_name): log_size = os.stat(log_name).st_size
 			if (os.path.exists(maegz_name) or os.path.exists(lib_name)):
-				#print("already docked %s" %grid_file_no_ext)
 				continue
 			elif os.path.exists(log_name):
 				with open(log_name, 'r') as f:
@@ -687,113 +707,78 @@ def dock_ligands_and_receptors(grid_dir, docking_dir, ligands_dir, precision = "
 								 redo=False):
 	ligands = get_trajectory_files(ligands_dir, ext = ext)
 
-	if parallel == "both":
-		lig_dirs = []
-		docking_dirs = []
-		args = []
-		for ligand in ligands:
-			lig_last_name = ligand.split("/")[len(ligand.split("/"))-1]
-			lig_no_ext = lig_last_name.split("-out.")[0]
-			if chosen_ligands is not False:
-				if lig_no_ext not in chosen_ligands: continue
-			lig_dir = "%s/%s" %(docking_dir, lig_no_ext)
-			if not os.path.exists(lig_dir): os.makedirs(lig_dir)
-			docking_dirs.append(lig_dir)
-			lig_dirs.append(ligand)
-			args.append((grid_dir, lig_dir, ligand, precision, chosen_receptors, True, grid_ext))
-		
-		num_workers = 5
-		pool = MyPool(num_workers)
-		pool.map(dock_helper, args)
+	dock_jobs = []
+	ligand_dirs = []
+
+	ligand_dir_tuples = []
+
+	print("Creating new directories for each ligand.")
+	for ligand in ligands:
+		lig_last_name = ligand.split("/")[len(ligand.split("/"))-1]
+		lig_no_ext = lig_last_name.split("-out.")[0]
+		if chosen_ligands is not False:
+			if lig_no_ext not in chosen_ligands: continue
+		lig_dir = "%s/%s" %(docking_dir, lig_no_ext)
+		if not os.path.exists(lig_dir): os.makedirs(lig_dir)
+		ligand_dir_tuples.append((lig_dir, ligand))
+
+	print("Done creating directories. Determining which docking jobs to conduct.")
+	dock_conformations_partial = partial(dock_conformations, grid_dir=grid_dir,
+																			 precision=precision,
+																			 chosen_jobs=chosen_receptors, grid_ext=grid_ext,
+																			 return_jobs=True,
+																			 retry_after_failed=retry_after_failed, redo=redo)
+	print(mp.cpu_count())	
+	a = time.time()
+	pool = mp.Pool(mp.cpu_count()-1)
+	dock_jobs = pool.map_async(dock_conformations_partial, ligand_dir_tuples)
+	#dock_jobs = worker_pool.map(dock_conformations_partial, ligand_dir_tuples)
+	#dock_jobs.wait_interactive()
+	dock_jobs.wait()
+	dock_jobs = dock_jobs.get()
+	pool.terminate()
+	print(time.time()-a)
+
+	print(len(dock_jobs))
+
+	#for i, ldt in enumerate(ligand_dir_tuples):
+#		if i % 100 == 0: print(i)
+	#	dock_jobs.append(dock_conformations_partial(ldt))
+
+
+	#dock_jobs = function_mapper(dock_conformations_partial,
+#								worker_pool, parallel,
+#									ligand_dir_tuples)
+
+	dock_jobs = [job for ligand in dock_jobs for job in ligand]
+
+	partial_docker = partial(dock, timeout=timeout)
+	print("About to do %d Docking computations." %len(dock_jobs))
+	
+	if worker_pool is not None:
+		random.shuffle(dock_jobs)
+		docked_jobs = worker_pool.map(partial_docker, dock_jobs)
+		docked_jobs.wait()
+		#docked_jobs.wait_interactive()
+	elif parallel:
+		pool = mp.Pool(4)
+		pool.map(partial_docker, dock_jobs)
 		pool.terminate()
-
-	elif parallel == "ligand":
-		print("parallelize over ligands.")
-		lig_dirs = []
-		docking_dirs = []
-		args = []
-		for ligand in ligands:
-			lig_last_name = ligand.split("/")[len(ligand.split("/"))-1]
-			lig_no_ext = lig_last_name.split("-out.")[0]
-			lig_dir = "%s/%s" %(docking_dir, lig_no_ext)
-			if not os.path.exists(lig_dir): os.makedirs(lig_dir)
-			docking_dirs.append(lig_dir)
-			lig_dirs.append(ligand)
-			args.append((grid_dir, lig_dir, ligand, precision, chosen_receptors, False, grid_ext))
-		
-		print(args)
-		num_workers = mp.cpu_count()
-		pool = mp.Pool(num_workers)
-		pool.map(dock_helper, args)
-		pool.terminate()
-
-	elif parallel == "receptor":
-		lig_dirs = []
-		docking_dirs = []
-		args = []
-		for ligand in ligands:
-			lig_last_name = ligand.split("/")[len(ligand.split("/"))-1]
-			lig_no_ext = lig_last_name.split("-out.")[0]
-			if chosen_ligands is not False:
-				if lig_no_ext not in chosen_ligands: continue
-			lig_dir = "%s/%s" %(docking_dir, lig_no_ext)
-			if not os.path.exists(lig_dir): os.makedirs(lig_dir)
-			docking_dirs.append(lig_dir)
-			lig_dirs.append(ligand)
-			args.append((grid_dir, lig_dir, ligand, precision, chosen_receptors, True, grid_ext))
-		
-		for arg in args:
-			dock_helper(arg)
-
 	else:
-		dock_jobs = []
-		ligand_dirs = []
-
-		ligand_dir_tuples = []
-
-		print("Creating new directories for each ligand.")
-		for ligand in ligands:
-			lig_last_name = ligand.split("/")[len(ligand.split("/"))-1]
-			lig_no_ext = lig_last_name.split("-out.")[0]
-			if chosen_ligands is not False:
-				if lig_no_ext not in chosen_ligands: continue
-			lig_dir = "%s/%s" %(docking_dir, lig_no_ext)
-			if not os.path.exists(lig_dir): os.makedirs(lig_dir)
-			ligand_dir_tuples.append((lig_dir, ligand))
-
-		print("Done creating directories. Determining which docking jobs to conduct.")
-		dock_conformations_partial = partial(dock_conformations, grid_dir=grid_dir,
-																				 precision=precision,
-																				 chosen_jobs=chosen_receptors, grid_ext=grid_ext,
-																				 return_jobs=True,
-																				 retry_after_failed=retry_after_failed, redo=redo)
-
-		dock_jobs = function_mapper(dock_conformations_partial,
-																parallel=parallel,
-																worker_pool=worker_pool,
-																var_list=ligand_dir_tuples)
-
-		dock_jobs = [job for ligand in dock_jobs for job in ligand]
-
-		partial_docker = partial(dock, timeout=timeout)
-		print("About to do %d Docking computations." %len(dock_jobs))
-
-		if worker_pool is not None:
-			random.shuffle(dock_jobs)
-			worker_pool.map_sync(partial_docker, dock_jobs)
-		elif parallel:
-			pool = mp.Pool(4)
-			pool.map(partial_docker, dock_jobs)
-			pool.terminate()
-		else:
-			for dock_job in dock_jobs[:2]:
-				partial_docker(dock_job)
+		for dock_job in dock_jobs[:2]:
+			partial_docker(dock_job)
+	
 	print("Completed docking.")
+
 
 '''
 
 Identical as above functions for docking, but for MM-GBSA calculations 
 '''
+
+#def split_and_run_dock_jobs(dock_jobs, n_nodes):
+#	random.shuffle(dock_jobs)
+#	for i in range(dock_)
 
 def mmgbsa_individual(job):
 	cmd = "$SCHRODINGER/prime_mmgbsa -WAIT %s" %job

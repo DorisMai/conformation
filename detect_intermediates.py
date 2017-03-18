@@ -28,9 +28,9 @@ from scipy.signal import argrelextrema
 from scipy import stats
 from scipy import spatial
 from matplotlib.colors import ListedColormap
-
 from msmbuilder.utils import KDTree
 from matplotlib.pyplot import cm
+from sklearn import mixture
 
 
 def select_model(X, tic_j, max_components, save_dir):
@@ -1051,7 +1051,8 @@ def get_kde_and_multi_onehot(data, names=None, binary_keep_one=True):
   return new_data, new_names
 
 def multi_onehot_trajectories(data, names, custom_bounds=None,
-                              subsample=1, binary_keep_one=True):
+                              subsample=1, binary_keep_one=True,
+                              bandwidth=None):
   data_conc = np.concatenate(data)[::subsample]
   new_data = []
   new_names = []
@@ -1063,7 +1064,7 @@ def multi_onehot_trajectories(data, names, custom_bounds=None,
     else:
       print(j)
       column = data_conc[:,j]
-      bounds = get_kde_mins(column)
+      bounds = get_kde_mins(column, bandwidth=bandwidth)
       if len(bounds) == 0:
         bounds = [np.average(column)]
       all_bounds.append(bounds)
@@ -1078,6 +1079,40 @@ def multi_onehot_trajectories(data, names, custom_bounds=None,
   new_dfs = [pd.DataFrame(t, columns=new_names) for t in new_data]
 
   return new_data, new_names, new_dfs
+
+def multi_onehot_trajectories_gmm(data, names, subsample=1, n_components=4):
+  data_conc = np.concatenate(data)[::subsample]
+  new_data = []
+  new_names = []
+  all_means = []
+  gmms = []
+  for j in range(0, data_conc.shape[1]):
+    print(j)
+    column = data_conc[:,j]
+    gmm_model = mixture.GMM(n_components=n_components)
+    gmm_model.fit(column.reshape((-1,1)))
+    gmms.append(gmm_model)
+    means = gmm_model.means_
+    all_means.append(means)
+    for mean in means:
+      if names is not None:
+        new_names.append("%s_mean%.2f" %(names[j], mean))
+      else:
+        new_names.append("")
+
+  for traj in data:
+    new_traj = []
+    for j in range(0, data_conc.shape[1]):
+      transformed_traj = gmms[j].predict(traj[:,j].reshape((-1,1)))
+      transformed_traj = convert_to_n_class(transformed_traj, n_classes=len(all_means[j]))
+      new_traj.append(transformed_traj)
+    new_traj = np.concatenate(new_traj, axis=1)
+    new_data.append(new_traj)
+
+  new_dfs = [pd.DataFrame(t, columns=new_names) for t in new_data]
+
+  return new_data, new_names, new_dfs
+
 
 def make_edge_list(scores, importances_df, cutoff_score=0.8, cutoff_importance=0.):
     importances_arr = importances_df.values
@@ -1095,8 +1130,8 @@ def make_edge_list(scores, importances_df, cutoff_score=0.8, cutoff_importance=0
     edge_df = pd.DataFrame(edge_tuples, columns=["feature_i", "feature_j", "importance"])
     return edge_df
 
-def get_kde_mins(data):
-  kde = stats.gaussian_kde(data)
+def get_kde_mins(data, bandwidth=None):
+  kde = stats.gaussian_kde(data, bw_method=bandwidth)
   x = np.linspace(data.min(), data.max(),200)
   dx = kde(x)
   mi, ma = argrelextrema(dx, np.less)[0], argrelextrema(dx, np.greater)[0]
@@ -1157,6 +1192,11 @@ def find_most_populated_intermediates(msm_object, intermediates):
   print(intermediates[order])
   return(intermediates[order])
 
+def convert_to_n_class(values, n_classes=None):
+  if n_classes is None:
+    return np.eye(len(set(values.tolist())))[values.tolist()]
+  else:
+    return np.eye(n_classes)[values.tolist()]
 
 
 
