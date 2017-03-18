@@ -10,7 +10,7 @@ import datetime
 import multiprocessing as mp
 import copy
 import gc
-from functools import partial 
+from functools import partial
 import time
 import fileinput
 import subprocess
@@ -38,13 +38,13 @@ signal.signal(signal.SIGALRM, timeout_handler)
 '''
 If simulation was run under periodic boundary conditions, this will reimage the trajectory.
 It takes as input the trajectory file (traj_file), the directory that that trajectory is in (traj_dir),
-the directory to which you would like to save the new trajectory, and the extension (ext) of the file. 
+the directory to which you would like to save the new trajectory, and the extension (ext) of the file.
 
-In the docking pipeline, I do this to all PDB files containing receptors to which I would like to dock. 
-You can skip this step if it already has been reimaged. 
+In the docking pipeline, I do this to all PDB files containing receptors to which I would like to dock.
+You can skip this step if it already has been reimaged.
 
-It requires that Pytraj be installed. This can be very annoying to do. It was easy to install on 
-Sherlock but not on Biox3. 
+It requires that Pytraj be installed. This can be very annoying to do. It was easy to install on
+Sherlock but not on Biox3.
 
 '''
 
@@ -58,7 +58,7 @@ an .mae file, which is required for docking.
 def pprep_prot(pdb, ref, extension = ".mae"):
 	pdb_noext = os.path.splitext(pdb)[0]
 	mae_filename =	"%s.mae" % pdb_noext
-	if os.path.exists(mae_filename): 
+	if os.path.exists(mae_filename):
 		print("already prepped and mae'd protein")
 		return
 
@@ -113,10 +113,10 @@ def pprep(pdb_dir, ref, indices = None, chosen_receptors = None, extension = ".m
 
 
 '''
-The f ollowing two functions take as input the directory contianing the ligands you would like to dock to your receptors, 
-and prepares them with Schrodinger LigPrep, and then saves them in .maegz format, required for the actual docking. 
+The f ollowing two functions take as input the directory contianing the ligands you would like to dock to your receptors,
+and prepares them with Schrodinger LigPrep, and then saves them in .maegz format, required for the actual docking.
 You can change the settings listed in "ligfile.write" lines. Perhaps we should add this instead as optional inputs
-in the function definition. 
+in the function definition.
 '''
 
 def prepare_ligand(lig, lig_dir, n_ring_conf, n_stereoisomers, force_field, verbose=True):
@@ -144,7 +144,7 @@ def prepare_ligand(lig, lig_dir, n_ring_conf, n_stereoisomers, force_field, verb
 		cmd = "unset PYTHONPATH; $SCHRODINGER/utilities/smiles_to_mae %s %s" %(lig, intermediate_file)
 		subprocess.call(cmd, shell=True)
 	else:
-		lig_mae = lig_last_name	
+		lig_mae = lig_last_name
 
 	ligfile = open(lig_input, "w")
 	ligfile.write("INPUT_FILE_NAME	 %s \n" %lig_mae)
@@ -181,7 +181,7 @@ def write_smiles_files(smiles_df, lig_dir):
 	print("Finished writing SMILES files.")
 
 def get_smiles(idx, names=None, cids=None, sids=None, binding_db=None):
-	try: 
+	try:
 		cid = int(cids[idx])
 		smiles_string = binding_db.loc[binding_db['PubChem CID'] == cid]["Ligand SMILES"].values[0]
 	except:
@@ -208,7 +208,7 @@ def get_smiles(idx, names=None, cids=None, sids=None, binding_db=None):
 						cs = get_compounds(name, 'name')
 						smiles_string = cs[0].isomeric_smiles
 					except:
-						smiles_string = np.nan 
+						smiles_string = np.nan
 	return(smiles_string)
 
 def add_smiles_column(cid_df, names=None, cids=None, sids=None, binding_db=None,
@@ -218,7 +218,7 @@ def add_smiles_column(cid_df, names=None, cids=None, sids=None, binding_db=None,
 
 	get_smiles_partial = partial(get_smiles, names=names, cids=cids,
 															 sids=sids, binding_db=binding_db)
-	
+
 	smiles_strings = function_mapper(get_smiles_partial,
 																	 worker_pool,
 																	 parallel,
@@ -228,9 +228,9 @@ def add_smiles_column(cid_df, names=None, cids=None, sids=None, binding_db=None,
 	return(cid_df)
 
 """
-download SDF from PubChem 
-cid: integer 
-save_dir: string. cannot have slash at end. 
+download SDF from PubChem
+cid: integer
+save_dir: string. cannot have slash at end.
 """
 def download_sdf_from_cid(cid, save_dir):
 	try:
@@ -267,7 +267,7 @@ def prepare_ligands(lig_dir, exts = [".mae"],
 	if smiles_df is not None or cid_df is not None:
 		if ".smi" not in exts:
 			exts.append(".smi")
-	
+
 	if smiles_df is not None:
 		write_smiles_files(smiles_df, lig_dir)
 
@@ -285,7 +285,7 @@ def prepare_ligands(lig_dir, exts = [".mae"],
 		if "name" in cid_df.columns.values.tolist():
 			names = cid_df["name"].values
 			new_names = []
-			#TODO: Only works in Python 3...must fix. 
+			#TODO: Only works in Python 3...must fix.
 			#for name in names:
 			#	new_names.append(name.replace("beta", "beta").replace("alpha", "alpha"))
 			cid_df["ligand"] = names
@@ -296,7 +296,7 @@ def prepare_ligands(lig_dir, exts = [".mae"],
 
 		get_smiles_partial = partial(get_smiles, names=names, cids=cids,
 																 sids=sids, binding_db=binding_db)
-		
+
 		smiles_strings = function_mapper(get_smiles_partial,
 																		 worker_pool,
 																		 parallel,
@@ -322,7 +322,7 @@ def prepare_ligands(lig_dir, exts = [".mae"],
 	print("Examining %d ligands" %len(ligs))
 
 
-	lig_partial = partial(prepare_ligand, lig_dir = lig_dir, 
+	lig_partial = partial(prepare_ligand, lig_dir = lig_dir,
 												n_ring_conf=n_ring_conf,
 												n_stereoisomers=n_stereoisomers,
 												force_field=force_field)
@@ -344,10 +344,10 @@ def prepare_ligands(lig_dir, exts = [".mae"],
 		return(cid_df)
 
 '''
-To dock, Schrodinger has to generate grid files (in .zip format) for each receptor. This needs as input the (x,y,z) coordinates 
+To dock, Schrodinger has to generate grid files (in .zip format) for each receptor. This needs as input the (x,y,z) coordinates
 for the center of the grid, and parameters for the size of the box surrounding that point in which Glide will try to dock your ligand(s).
-ALl you need to do is pass to "generate_grids() the following: 
-mae_dir, a directory containing mae files of the receptors to which you will dock 
+ALl you need to do is pass to "generate_grids() the following:
+mae_dir, a directory containing mae files of the receptors to which you will dock
 grid_center, a *string* containing the x,y,z coords of the center of the grid, e.g: grid_center = "64.4, 16.9, 11.99"
 grid_dir: the directory where you want Schrodinger to save the .zip grid files
 remove_lig: if there is a co-crystallized or docked ligand already in your .mae files, you will need to remove it first. to automatically
@@ -361,7 +361,7 @@ def generate_grid_input(mae, grid_center, grid_dir, remove_lig = None, outer_box
 	mae_last_name = mae_name.split("/")[len(mae_name.split("/"))-1]
 
 	output_dir = grid_dir
-	
+
 	new_mae = "%s/%s.mae" %(output_dir, mae_last_name)
 
 	grid_job = "%s/%s.in" %(output_dir, mae_last_name)
@@ -409,13 +409,13 @@ def generate_grid(grid_file, grid_dir):
 		print("completed grid generation job")
 	except:
 		print("ERROR WITH GRID GENERATION")
-	return 
+	return
 
 def unzip(zip_file):
 	output_folder = "/".join(zip_file.split("/")[0:len(zip_file.split("/"))-1])
 	os.chdir(output_folder)
 	zip_file_last_name = zip_file.split("/")[len(zip_file.split("/"))-1].split(".")[0]
-	if os.path.exists("%s/%s.grd" %(output_folder, zip_file_last_name)): 
+	if os.path.exists("%s/%s.grd" %(output_folder, zip_file_last_name)):
 		print("Already unzipped grid files")
 		return
 
@@ -486,10 +486,10 @@ def generate_grids(mae_dir, grid_center, grid_dir, remove_lig = None,
 		pool.map(generate_grid_input_partial, maes)
 		grid_files = get_trajectory_files(grid_dir, ".in")
 		pool.map(grid_partial, grid_files)
-		pool.terminate() 
+		pool.terminate()
 	else:
 		for mae in maes:
-			generate_grid_input_partial(mae)		
+			generate_grid_input_partial(mae)
 		grid_files = get_trajectory_files(grid_dir, ".in")
 		for grid_file in grid_files:
 			grid_partial(grid_file)
@@ -598,23 +598,6 @@ def dock_conformations(docking_ligand_dir_tuple, grid_dir="", precision = "SP",
 	#print dock_jobs
 	if return_jobs:
 		return dock_jobs
-	"""
-	if worker_pool is not None:
-		print("MAPPING OVER WORKER POOL")
-		worker_pool.map_sync(dock, dock_jobs)
-	elif parallel:
-		num_workers = mp.cpu_count()
-		pool = mp.Pool(num_workers)
-		pool.map(dock, dock_jobs)
-		pool.terminate()
-	else:
-		print("DOCKING IN SERIES")
-		os.chdir(docking_dir)
-		for job in dock_jobs:
-			dock(job)
-
-	print("Done docking.")
-	"""
 
 def failed(log_file):
 	log = open(log_file, "r")
@@ -634,9 +617,10 @@ def failed(log_file):
 				xp_score = float(line[8])
 				#print "%f, %f" %(xp_score, score)
 				if xp_score < score: score = xp_score
-	if score == 0: return False 
+	if score == 0: return False
 	log.close()
 	return True
+
 def failed_docking_jobs(docking_dir, ligand, precision):
 	logs = get_trajectory_files(docking_dir, ext = ".log")
 	failed_jobs = []
@@ -670,18 +654,18 @@ class MyPool(mp.pool.Pool):
 		Process = NoDaemonProcess
 
 '''
-This is the function for docking multiple ligands to multiple receptors. 
+This is the function for docking multiple ligands to multiple receptors.
 
-grid_dir: the directory where the .zip files for each receptor to whicih you would like to dock is located. 
-docking_dir = the directory to which you would like Glide to save all the results of docking 
-ligands_dir = the directory containing the .maegz files containing the LigPrep prepared ligands for docking 
+grid_dir: the directory where the .zip files for each receptor to whicih you would like to dock is located.
+docking_dir = the directory to which you would like Glide to save all the results of docking
+ligands_dir = the directory containing the .maegz files containing the LigPrep prepared ligands for docking
 precision --> each Glide docking job can be done in SP or XP level of precision. XP is more accurate but takes about 7 times as long as each SP calculations
 	you can change this to precision = "XP" if you would like to try that. Literature shows that it is in fact a little more accurate.
 chosen_ligands --> if, in your ligands_dir directory you only want to dock particular ligands, pass here a list of strings of the ligand names,
 	and it will only dock those ligands. in the example folder provided, for example, if you pass ["procaterol", "ta-2005"], it will only dock
 	those two ligands
 chosen_receptors --> same as chosen_ligands. if you pass ["cluster301_sample0", "cluster451_sample5"] it will only use those two receptors for docking
-parallel --> if you set it to "both" it will run in parallel over both ligands and receptors. I don't recommend this generally. 
+parallel --> if you set it to "both" it will run in parallel over both ligands and receptors. I don't recommend this generally.
 	if you pass "ligand": it will parallelize over all ligands. Recommened if n_liagnds > n_receptors
 	if you pass "receptor": it will parallelize over receptors. Recommedned if n_receptors > n_ligands
 '''
@@ -693,111 +677,282 @@ def dock_ligands_and_receptors(grid_dir, docking_dir, ligands_dir, precision = "
 								 redo=False):
 	ligands = get_trajectory_files(ligands_dir, ext = ext)
 
-	if parallel == "both":
-		lig_dirs = []
-		docking_dirs = []
-		args = []
-		for ligand in ligands:
-			lig_last_name = ligand.split("/")[len(ligand.split("/"))-1]
-			lig_no_ext = lig_last_name.split("-out.")[0]
-			if chosen_ligands is not False:
-				if lig_no_ext not in chosen_ligands: continue
-			lig_dir = "%s/%s" %(docking_dir, lig_no_ext)
-			if not os.path.exists(lig_dir): os.makedirs(lig_dir)
-			docking_dirs.append(lig_dir)
-			lig_dirs.append(ligand)
-			args.append((grid_dir, lig_dir, ligand, precision, chosen_receptors, True, grid_ext))
-		
-		num_workers = 5
-		pool = MyPool(num_workers)
-		pool.map(dock_helper, args)
+	dock_jobs = []
+	ligand_dirs = []
+
+	ligand_dir_tuples = []
+
+	print("Creating new directories for each ligand.")
+	for ligand in ligands:
+		lig_last_name = ligand.split("/")[len(ligand.split("/"))-1]
+		lig_no_ext = lig_last_name.split("-out.")[0]
+		if chosen_ligands is not False:
+			if lig_no_ext not in chosen_ligands: continue
+		lig_dir = "%s/%s" %(docking_dir, lig_no_ext)
+		if not os.path.exists(lig_dir): os.makedirs(lig_dir)
+		ligand_dir_tuples.append((lig_dir, ligand))
+
+	print("Done creating directories. Determining which docking jobs to conduct.")
+	dock_conformations_partial = partial(dock_conformations, grid_dir=grid_dir,
+																			 precision=precision,
+																			 chosen_jobs=chosen_receptors, grid_ext=grid_ext,
+																			 return_jobs=True,
+																			 retry_after_failed=retry_after_failed, redo=redo)
+	print(mp.cpu_count())
+	a = time.time()
+	pool = mp.Pool(mp.cpu_count()-1)
+	dock_jobs = pool.map_async(dock_conformations_partial, ligand_dir_tuples)
+	#dock_jobs = worker_pool.map(dock_conformations_partial, ligand_dir_tuples)
+	#dock_jobs.wait_interactive()
+	dock_jobs.wait()
+	dock_jobs = dock_jobs.get()
+	pool.terminate()
+	print(time.time()-a)
+
+	print(len(dock_jobs))
+
+	#for i, ldt in enumerate(ligand_dir_tuples):
+#		if i % 100 == 0: print(i)
+	#	dock_jobs.append(dock_conformations_partial(ldt))
+
+
+	#dock_jobs = function_mapper(dock_conformations_partial,
+#								worker_pool, parallel,
+#									ligand_dir_tuples)
+
+	dock_jobs = [job for ligand in dock_jobs for job in ligand]
+
+	partial_docker = partial(dock, timeout=timeout)
+	print("About to do %d Docking computations." %len(dock_jobs))
+
+	if worker_pool is not None:
+		random.shuffle(dock_jobs)
+		docked_jobs = worker_pool.map(partial_docker, dock_jobs)
+		docked_jobs.wait()
+		#docked_jobs.wait_interactive()
+	elif parallel:
+		pool = mp.Pool(4)
+		pool.map(partial_docker, dock_jobs)
 		pool.terminate()
-
-	elif parallel == "ligand":
-		print("parallelize over ligands.")
-		lig_dirs = []
-		docking_dirs = []
-		args = []
-		for ligand in ligands:
-			lig_last_name = ligand.split("/")[len(ligand.split("/"))-1]
-			lig_no_ext = lig_last_name.split("-out.")[0]
-			lig_dir = "%s/%s" %(docking_dir, lig_no_ext)
-			if not os.path.exists(lig_dir): os.makedirs(lig_dir)
-			docking_dirs.append(lig_dir)
-			lig_dirs.append(ligand)
-			args.append((grid_dir, lig_dir, ligand, precision, chosen_receptors, False, grid_ext))
-		
-		print(args)
-		num_workers = mp.cpu_count()
-		pool = mp.Pool(num_workers)
-		pool.map(dock_helper, args)
-		pool.terminate()
-
-	elif parallel == "receptor":
-		lig_dirs = []
-		docking_dirs = []
-		args = []
-		for ligand in ligands:
-			lig_last_name = ligand.split("/")[len(ligand.split("/"))-1]
-			lig_no_ext = lig_last_name.split("-out.")[0]
-			if chosen_ligands is not False:
-				if lig_no_ext not in chosen_ligands: continue
-			lig_dir = "%s/%s" %(docking_dir, lig_no_ext)
-			if not os.path.exists(lig_dir): os.makedirs(lig_dir)
-			docking_dirs.append(lig_dir)
-			lig_dirs.append(ligand)
-			args.append((grid_dir, lig_dir, ligand, precision, chosen_receptors, True, grid_ext))
-		
-		for arg in args:
-			dock_helper(arg)
-
 	else:
-		dock_jobs = []
-		ligand_dirs = []
+		for dock_job in dock_jobs[:2]:
+			partial_docker(dock_job)
 
-		ligand_dir_tuples = []
-
-		print("Creating new directories for each ligand.")
-		for ligand in ligands:
-			lig_last_name = ligand.split("/")[len(ligand.split("/"))-1]
-			lig_no_ext = lig_last_name.split("-out.")[0]
-			if chosen_ligands is not False:
-				if lig_no_ext not in chosen_ligands: continue
-			lig_dir = "%s/%s" %(docking_dir, lig_no_ext)
-			if not os.path.exists(lig_dir): os.makedirs(lig_dir)
-			ligand_dir_tuples.append((lig_dir, ligand))
-
-		print("Done creating directories. Determining which docking jobs to conduct.")
-		dock_conformations_partial = partial(dock_conformations, grid_dir=grid_dir,
-																				 precision=precision,
-																				 chosen_jobs=chosen_receptors, grid_ext=grid_ext,
-																				 return_jobs=True,
-																				 retry_after_failed=retry_after_failed, redo=redo)
-
-		pool = mp.Pool(mp.cpu_count())
-		dock_jobs = pool.map(dock_conformations_partial, ligand_dir_tuples)
-		pool.terminate()
-
-		dock_jobs = [job for ligand in dock_jobs for job in ligand]
-
-		partial_docker = partial(dock, timeout=timeout)
-		print("About to do %d Docking computations." %len(dock_jobs))
-
-		if worker_pool is not None:
-			random.shuffle(dock_jobs)
-			worker_pool.map_sync(partial_docker, dock_jobs)
-		elif parallel:
-			pool = mp.Pool(4)
-			pool.map(partial_docker, dock_jobs)
-			pool.terminate()
-		else:
-			for dock_job in dock_jobs[:2]:
-				partial_docker(dock_job)
 	print("Completed docking.")
+
+
+def analyze_log_file(log_file):
+	log = open(log_file, "rb")
+	conformation = log_file.rsplit(".", 1)[0]
+	conformation = conformation.split("/")[len(conformation.split("/"))-1 ]
+	score = 0.0
+	xp_score = None
+	lines = log.readlines()
+	current_pose = 0
+	best_pose = 0
+	for line in lines:
+		line = [w.decode("utf-8") for w in line.split()]
+		if len(line) >= 3:
+			if (line[0] == "Best" and line[1] == "XP" and line[2] == "pose:"):
+				current_pose += 1
+				xp_score = float(line[6])
+				#print "%f, %f" %(xp_score, score)
+				if xp_score < score: 
+					score = xp_score
+					best_pose = current_pose
+			elif  (line[0] == "Best" and line[1] == "Emodel="):
+				current_pose += 1
+				xp_score = float(line[8])
+				#print("%f, %f" %(xp_score, score))
+				if xp_score < score:
+					score = xp_score
+					best_pose = current_pose
+
+	score = -1.0*score
+	log.close()
+	return (conformation, score, best_pose)
+
+def analyze_docking_results(docking_dir, ligand, precision, docking_summary, reread=True, write_to_disk=False):
+	try:
+		results_file = docking_summary
+		n_clusters = len(get_trajectory_files(docking_dir, ext = ".in"))
+
+		if os.path.exists(results_file):
+			if reread:
+				df = pd.read_csv(results_file)
+				if df.shape[0] >= n_clusters:
+					return (ligand, df)
+
+		logs = get_trajectory_files(docking_dir, ext = ".log")
+		scores_list = []
+
+		for log in logs:
+			scores_list.append(analyze_log_file(log))
+
+		scores_df = pd.DataFrame(scores_list, columns=["sample", "%s" %("%s_%s_score" %(ligand, precision)), "best_pose_id"])
+		if write_to_disk:
+			scores_df.to_csv(results_file)
+		#scores_map = {score[0] : score[1] for score in scores_list}
+		#titles = ["sample", "%s" %("%s_%s_score" %(ligand, precision))]
+		#write_map_to_csv(results_file, scores_map, titles)
+		#merged_results = merge_samples(scores_map)
+		return (ligand, scores_df)
+	except:
+		return None
+
+def analyze_docking_results_wrapper(args):
+	return analyze_docking_results(*args)
+
+def get_lig_names(docking_dir):
+	subdirs = [x[0] for x in os.walk(docking_dir)]
+	lig_names = []
+
+	for subdir in subdirs:
+		lig_name = subdir.split("/")[len(subdir.split("/"))-1]
+		lig_names.append(lig_name)
+
+	return lig_names
+
+def listdirs(folder):
+		#return [
+		#    d for d in (os.path.join(folder, d1) for d1 in os.listdir(folder))
+		#    if os.path.isdir(d)
+		#]
+		#from glob import glob
+		return(["%s/%s" %(folder, f) for f in os.listdir(folder)])
+		#return([d.path for d in os.scandir(folder) if d.is_dir()])
+
+def parse_log_file(result):
+	ligand, result = result
+	keep_columns = [c for c in result.columns.values.tolist() if "score" in c]
+	result.index = result['sample'].values
+
+	docking_pose = result["best_pose_id"]
+	result = result[keep_columns]
+
+	return (ligand, docking_pose, result)
+
+def get_arg_tuple(subdir, ligands=None, precision="SP", redo=False, reread=True, write_to_disk=False):
+	lig_name = subdir.split("/")[len(subdir.split("/"))-1]
+	if ligands is not None:
+		if lig_name not in ligands:
+			return None
+	docking_summary = "%s/docking_summary.csv" %subdir
+	return([subdir, lig_name, precision, docking_summary, reread, write_to_disk])
+
+import time
+
+"""
+
+"""
+
+
+def analyze_docking_results_multiple(docking_dir, precision, summary, 
+																		 ligands=None, poses_summary=None, redo=False, reread=True,
+																		 write_to_disk=False, parallel=False, worker_pool=None):
+
+  """Produces Pandas DataFrame where each row is a ligand, each column 
+     is a protein conformation, and each entry is the maximum Glide docking score
+     for that (ligand_i, protein_j) combination 
+   
+  Parameters
+  ----------
+  docking_dir: directory organized by ligand subdirectories
+  	in each ligand subdirectory will be Glide .log files of
+  	the docking for all protein conformations to that ligand
+  precision: "SP" or "XP"
+  summary: provide a pkl_file for saving the dataframe 
+  parallel: will use multiprocessing to try to speed up analysis
+  """
+
+	if os.path.exists(summary) and not redo:
+		with open(summary, "rb") as f:
+			df = pickle.load(f)
+		return(df, None)
+		#df = pd.read_csv(summary, index_col=0).transpose()
+		return df, None
+
+	print("Analyzing docking results")
+	print(docking_dir)
+	subdirs = listdirs(docking_dir)
+	#print subdirs
+	results_list = []
+	lig_names = []
+	arg_tuples = []
+
+	print("Obtaining docking scores now...")
+
+	get_arg_tuple_partial = partial(get_arg_tuple,
+								    ligands=ligands,
+								    precision=precision,
+								    redo=redo, reread=reread,
+								    write_to_disk=write_to_disk)
+
+	pool = mp.Pool(mp.cpu_count()-1)
+	arg_tuples = pool.map_async(get_arg_tuple_partial,
+								  subdirs)
+	arg_tuples.wait()
+	arg_tuples = arg_tuples.get()
+	arg_tuples = [t for t in arg_tuples if t is not None]
+	pool.terminate()
+
+	#arg_tuples = function_mapper(get_arg_tuple_partial,
+	#							 worker_pool,
+	#								 parallel, subdirs)
+
+
+	print("Obtained ligand arguments.")
+
+	#results_list = function_mapper(analyze_docking_results_wrapper, worker_pool, parallel, arg_tuples)
+	a = time.time()
+	pool = mp.Pool(mp.cpu_count()-1)
+	results_list = pool.map_async(analyze_docking_results_wrapper, arg_tuples)
+	results_list.wait()
+	results_list = results_list.get()
+	pool.terminate()
+
+	results_list = [r for r in results_list if r is not None]
+	print(time.time()-a)
+	print("Examined all ligands.")
+
+	a = time.time()
+	pool = mp.Pool(mp.cpu_count()-1)
+	results = pool.map_async(parse_log_file, results_list)
+	results.wait()
+	results = results.get()
+	pool.terminate()
+
+	all_docking_results = [t[2] for t in results]
+	all_docking_poses = [t[1] for t in results]
+	lig_names = [t[0] for t in results]
+	print(time.time()-a)
+	print("Parsed all log files.")
+
+
+	all_docking_poses = pd.concat(all_docking_poses, axis=1)
+	all_docking_poses.columns = lig_names
+	if poses_summary is not None:
+		all_docking_poses.to_csv(poses_summary)
+
+	all_docking_results = pd.concat(all_docking_results, axis=1)
+	all_docking_results.columns = lig_names
+
+	all_docking_results = all_docking_results.transpose()
+
+	with open(summary, "wb") as f:
+		pickle.dump(all_docking_results, f, protocol=2)
+	#all_docking_results.to_csv(summary)
+	return all_docking_results, all_docking_poses
+
+	#combined_map = combine_maps(results_list)
+	#combined_filename = summary
+	#write_map_to_csv(combined_filename, combined_map, ["sample"] + lig_names)
+
+
 
 '''
 
-Identical as above functions for docking, but for MM-GBSA calculations 
+Identical as above functions for docking, but for MM-GBSA calculations
 '''
 
 #def split_and_run_dock_jobs(dock_jobs, n_nodes):
@@ -889,7 +1044,7 @@ def fast_split_sdf(sdf_file, save_dir):
 
 
 	#print("converting %d sdfs" %i)
-	
+
 	#save_sdf_partial = partial(save_sdf, save_dir=save_dir)
 	#pool = mp.Pool(mp.cpu_count())
 	#pool.map(save_sdf, mols)
