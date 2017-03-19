@@ -2,18 +2,24 @@
 
 dependencies:
 
-All are conda or pip installable.
+All are conda or pip installable except for Schrodinger tools.
 
-mdtraj
+For analysis of Molecular Dynamics trajectories:
 
-msmbuilder
+```mdtraj```
 
-pubchempy
+```msmbuilder```
 
-chembl_webresource_client
+For docking:
 
-pybel
+An installation of ```Schrodinger``` tools and tokens for Glide. Make sure that $SCHRODINGER is an environment variable that points to your installation.
 
-pandas
+```pubchempy```
+
+```chembl_webresource_client```
+
+```pybel```
+
+```pandas```
 
 
