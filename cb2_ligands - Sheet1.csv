@@ -1,0 +1,16 @@
+Name (identical to filename on disk),PubChem Compound ID (If exists),SMILES string,Inverse Agonist,Antagonist (Boolean),Agonist (Boolean),G Biased (Boolean),Arrestin Biased (Boolean),Partial agonist,"Comment (Selectivity, Disease)",Ref in Pubchem
+Cannabinol,2543,CCCCCC1=CC2=C(C(=C1)O)C3=C(C=CC(=C3)C)C(O2)(C)C,0,0,0,NA,NA,1,Weak CB1 binder and strong CB2 agonist,
+JWH-018,10382701,CCCCCN1C=C(C2=CC=CC=C21)C(=O)C3=CC=CC4=CC=CC=C43,0,0,1,NA,NA,0,Strong CB1 agonist,
+Win-55212-2,5311501,CC1=C(C2=C3N1C(COC3=CC=C2)CN4CCOCC4)C(=O)C5=CC=CC6=CC=CC=C65,0,0,1,NA,NA,0,"Strong CB1 agonist, Alzheimer",https://pubchem.ncbi.nlm.nih.gov/compound/5311501#section=Top
+JWH-133,6918505,CCCC(C)(C)C1=CC2=C(C=C1)C3CC(=CCC3C(O2)(C)C)C,0,0,1,NA,NA,0,"Strong CB2 agonist, Alzheimer, Cancer",https://pubchem.ncbi.nlm.nih.gov/compound/6918505
+HU-210,9821569,CCCCCCC(C)(C)C1=CC2=C(C3CC(=CCC3C(O2)(C)C)CO)C(=C1)O,0,0,1,1,0,0,"Both CB1 and CB2 agonist, Alzheimer",https://pubchem.ncbi.nlm.nih.gov/compound/9821569
+HU-211 (Dexanabinol),107778,CCCCCCC(C)(C)C1=CC2=C(C3CC(=CCC3C(O2)(C)C)CO)C(=C1)O,0,0,1,NA,NA,0,"Both CB1 and CB2 agonist, Cancer",
+Ajulemic acid,3083542,CCCCCCC(C)(C)C1=CC2=C(C3CC(=CCC3C(O2)(C)C)C(=O)O)C(=C1)O,0,0,1,NA,NA,0,"CB2 selective , activity in CB3, Arthritis",https://pubchem.ncbi.nlm.nih.gov/compound/3083542
+AM-630 (6-Iodopravadoline),4302963,CC1=C(C2=C(N1CCN3CCOCC3)C=C(C=C2)I)C(=O)C4=CC=C(C=C4)OC,1,0,0,NA,NA,0,"CB2 selective , Brain ",https://pubchem.ncbi.nlm.nih.gov/compound/4302963#section=Top
+Cannabidiol,644019,CCCCCC1=CC(=C(C(=C1)O)C2C=C(CCC2C(=C)C)C)O,0,1,0,NA,NA,0,"low binding to CB1,CB2, Epilepsy",https://pubchem.ncbi.nlm.nih.gov/compound/644019#section=Top
+Virodhamine,5712057,CCCCCC=CCC=CCC=CCC=CCCCC(=O)OCCN,0,1,0,NA,NA,0,CB2 Selective,https://pubchem.ncbi.nlm.nih.gov/compound/5712057#section=Top
+SR144528 (Rimonabant),3081355,CC1=CC=C(C=C1)CN2C(=CC(=N2)C(=O)NC3C(C4CCC3(C4)C)(C)C)C5=CC(=C(C=C5)Cl)C,1,0,0,NA,NA,0,CB2 Selective,https://pubchem.ncbi.nlm.nih.gov/compound/3081355
+"Levonantradol (CP 50,556-1)",5361881,CC1C2CCC(CC2C3=C(C=C(C=C3N1)OC(C)CCCC4=CC=CC=C4)OC(=O)C)O,0,0,1,1,0,0,CB1 Selective,https://pubchem.ncbi.nlm.nih.gov/compound/5361881#section=Top
+AM-2201,335161-24-5,C1=CC=C2C(=C1)C=CC=C2C(=O)C3=CN(C4=CC=CC=C43)CCCCCF,0,0,1,NA,NA,0,Mild Selectivity of CB2 over CB1,https://pubchem.ncbi.nlm.nih.gov/compound/53393997#section=Top
+Tetrahydrocannabinol (Dronabinol),16078,CCCCCC1=CC2=C(C3C=C(CCC3C(O2)(C)C)C)C(=C1)O,0,0,1,1,0,0,Mild Selectivity of CB2 over CB1,https://pubchem.ncbi.nlm.nih.gov/compound/16078
+JWH-073,10471670,CCCCN1C=C(C2=CC=CC=C21)C(=O)C3=CC=CC4=CC=CC=C43,0,0,1,NA,NA,0,Binding to CB1 and CB2,https://pubchem.ncbi.nlm.nih.gov/compound/10471670
