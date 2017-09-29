@@ -939,6 +939,42 @@ def fast_split_sdf(sdf_file, save_dir):
 		print(mol.title)
 		mol.write("sdf", "%s/%s_%d.sdf" % (save_dir, mol.title, i))
 
+def get_lig_names(docking_dir):
+  subdirs = [x[0] for x in os.walk(docking_dir)]
+  lig_names = []
+
+  for subdir in subdirs:
+    lig_name = subdir.split("/")[len(subdir.split("/"))-1]
+    lig_names.append(lig_name)
+
+  return lig_names
+
+def listdirs(folder):
+    #return [
+    #    d for d in (os.path.join(folder, d1) for d1 in os.listdir(folder))
+    #    if os.path.isdir(d)
+    #]
+    #from glob import glob
+    return(["%s/%s" %(folder, f) for f in os.listdir(folder)])
+    #return([d.path for d in os.scandir(folder) if d.is_dir()])
+
+def get_arg_tuple(subdir, ligands=None, precision="SP", redo=False, reread=True, write_to_disk=False):
+  lig_name = subdir.split("/")[len(subdir.split("/"))-1]
+  if ligands is not None:
+    if lig_name not in ligands:
+      return None
+  docking_summary = "%s/docking_summary.csv" %subdir
+  return([subdir, lig_name, precision, docking_summary, reread, write_to_disk])
+
+def parse_log_file(result):
+  ligand, result = result
+  keep_columns = [c for c in result.columns.values.tolist() if "score" in c]
+  result.index = result['sample'].values
+
+  docking_pose = result["best_pose_id"]
+  result = result[keep_columns]
+
+  return (ligand, docking_pose, result)
 
 def analyze_log_file(log_file):
 	log = open(log_file, "rb")
